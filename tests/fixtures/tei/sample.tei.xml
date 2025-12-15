@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Sample TEI Document</title>
+      </titleStmt>
+    </fileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Introduction</head>
+        <p>  First paragraph text with    extra whitespace. </p>
+        <p>Second paragraph text to combine.</p>
+      </div>
+      <div>
+        <head>Methods</head>
+        <p>Detailed methods paragraph.</p>
+        <div>
+          <head>Data</head>
+          <p>Nested paragraph that should be kept with its section.</p>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>
