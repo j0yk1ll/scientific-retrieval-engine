@@ -1,0 +1,20 @@
+{
+  "id": "https://openalex.org/W123456789",
+  "doi": "https://doi.org/10.5555/example.doi",
+  "display_name": "Example OpenAlex Work",
+  "publication_year": 2024,
+  "host_venue": {
+    "display_name": "Journal of Testing"
+  },
+  "abstract_inverted_index": {
+    "example": [0],
+    "openalex": [1],
+    "abstract": [2],
+    "text": [3, 5],
+    "for": [4]
+  },
+  "authorships": [
+    {"author": {"display_name": "Alice Smith"}},
+    {"author": {"display_name": "Bob Jones"}}
+  ]
+}
