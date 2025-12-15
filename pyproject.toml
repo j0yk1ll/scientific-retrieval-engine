@@ -28,6 +28,11 @@ dev = [
     "mypy==1.19.1",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests that rely on external services",
+]
+
 [tool.setuptools]
 package-dir = {"" = "."}
 
