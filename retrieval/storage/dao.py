@@ -178,3 +178,40 @@ def get_chunks_by_ids(conn: Connection, chunk_ids: Sequence[int]) -> list[Chunk]
         cur.execute(sql, (list(chunk_ids),))
         rows = cur.fetchall()
     return [Chunk.model_validate(row) for row in rows]
+
+
+def get_papers_by_ids(conn: Connection, paper_ids: Sequence[int]) -> list[Paper]:
+    """Fetch paper metadata for a list of identifiers."""
+
+    if not paper_ids:
+        return []
+
+    sql = (
+        """
+        SELECT id, title, abstract, doi, published_at, created_at, updated_at
+        FROM papers
+        WHERE id = ANY(%s)
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, (list(paper_ids),))
+        rows = cur.fetchall()
+    return [Paper.model_validate(row) for row in rows]
+
+
+def get_all_chunks(conn: Connection) -> list[Chunk]:
+    """Fetch all chunks in the database ordered by ``id``."""
+
+    sql = (
+        """
+        SELECT id, paper_id, chunk_order, content, created_at
+        FROM chunks
+        ORDER BY id
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    return [Chunk.model_validate(row) for row in rows]

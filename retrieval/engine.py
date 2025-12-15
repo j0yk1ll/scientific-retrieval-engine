@@ -16,9 +16,15 @@ from retrieval.acquisition.unpaywall import FullTextCandidate, UnpaywallClient, 
 from retrieval.config import RetrievalConfig
 from retrieval.discovery.openalex import OpenAlexClient, OpenAlexWork
 from retrieval.exceptions import AcquisitionError, ConfigError, ParseError
+from retrieval.index.colbert import ColbertIndex
 from retrieval.parsing.grobid_client import GrobidClient
 from retrieval.parsing.tei_chunker import TEIChunk, TEIChunker
+from retrieval.retrieval.postprocess import postprocess_results
+from retrieval.retrieval.types import ChunkSearchResult, EvidenceBundle
 from retrieval.storage.dao import (
+    get_all_chunks,
+    get_chunks_by_ids,
+    get_papers_by_ids,
     insert_chunks,
     insert_paper_source,
     replace_authors,
@@ -38,6 +44,8 @@ from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, Paper
 
 class RetrievalEngine:
     """Coordinates acquisition, parsing, indexing, and retrieval."""
+
+    index_name = "papers"
 
     def __init__(self, config: RetrievalConfig) -> None:
         self.config = config
@@ -196,10 +204,99 @@ class RetrievalEngine:
 
         raise NotImplementedError
 
-    def search(self, query: str, top_k: int = 10) -> Sequence[str]:
-        """Search the ColBERT index and return results."""
+    def rebuild_index(self) -> Path:
+        """Export chunks to TSV and rebuild the ColBERT index."""
 
-        raise NotImplementedError
+        conn = get_connection(self.config.db_dsn)
+        try:
+            chunks = get_all_chunks(conn)
+        finally:
+            conn.close()
+
+        rows = [
+            (str(chunk.id), chunk.content) for chunk in chunks if chunk.id is not None
+        ]
+        return self._colbert_index().build_index(rows)
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        *,
+        min_score: float | None = None,
+        max_per_paper: int = 2,
+    ) -> Sequence[ChunkSearchResult]:
+        """Search the ColBERT index and return ranked chunk results."""
+
+        normalized_query = query.strip()
+        if not normalized_query:
+            return []
+
+        ranking = self._colbert_index().search(normalized_query, top_k=top_k)
+
+        chunk_ids: list[int] = []
+        scores: dict[int, float] = {}
+        for chunk_id, score in ranking:
+            try:
+                parsed_id = int(chunk_id)
+            except (TypeError, ValueError):
+                continue
+            if parsed_id not in scores:
+                chunk_ids.append(parsed_id)
+            scores[parsed_id] = max(scores.get(parsed_id, float("-inf")), score)
+
+        conn = get_connection(self.config.db_dsn)
+        try:
+            chunk_models = get_chunks_by_ids(conn, chunk_ids)
+        finally:
+            conn.close()
+
+        chunk_map = {chunk.id: chunk for chunk in chunk_models if chunk.id is not None}
+        results: list[ChunkSearchResult] = []
+        for chunk_id in chunk_ids:
+            chunk = chunk_map.get(chunk_id)
+            if chunk is None:
+                continue
+            results.append(
+                ChunkSearchResult(
+                    chunk_id=chunk_id,
+                    paper_id=chunk.paper_id,
+                    chunk_order=chunk.chunk_order,
+                    content=chunk.content,
+                    score=scores.get(chunk_id, 0.0),
+                )
+            )
+
+        return postprocess_results(
+            results, min_score=min_score, max_per_paper=max_per_paper
+        )
+
+    def evidence_bundle(
+        self,
+        query: str,
+        top_k: int = 10,
+        *,
+        min_score: float | None = None,
+        max_per_paper: int = 2,
+    ) -> EvidenceBundle:
+        """Execute a search and return grouped evidence by paper."""
+
+        chunk_results = self.search(
+            query,
+            top_k=top_k,
+            min_score=min_score,
+            max_per_paper=max_per_paper,
+        )
+
+        paper_ids = {result.paper_id for result in chunk_results}
+        conn = get_connection(self.config.db_dsn)
+        try:
+            papers = get_papers_by_ids(conn, list(paper_ids))
+        finally:
+            conn.close()
+
+        paper_map = {paper.id: paper for paper in papers if paper.id is not None}
+        return EvidenceBundle.from_chunks(query, paper_map, chunk_results)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -360,3 +457,6 @@ class RetrievalEngine:
 
     def _tei_chunker(self) -> TEIChunker:
         return TEIChunker()
+
+    def _colbert_index(self) -> ColbertIndex:
+        return ColbertIndex(index_dir=self.config.index_dir, index_name=self.index_name)
