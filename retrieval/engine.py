@@ -16,7 +16,7 @@ from retrieval.acquisition.unpaywall import FullTextCandidate, UnpaywallClient, 
 from retrieval.config import RetrievalConfig
 from retrieval.discovery.openalex import OpenAlexClient, OpenAlexWork
 from retrieval.exceptions import AcquisitionError, ConfigError, ParseError
-from retrieval.index.colbert import ColbertIndex
+from retrieval.index import ChromaIndex
 from retrieval.parsing.grobid_client import GrobidClient
 from retrieval.parsing.tei_chunker import TEIChunk, TEIChunker
 from retrieval.retrieval.postprocess import postprocess_results
@@ -267,12 +267,12 @@ class RetrievalEngine:
         return [chunk.text for chunk in chunker.chunk(tei_xml)]
 
     def index_chunks(self, chunks: Iterable[str]) -> None:
-        """Index chunks using ColBERT."""
+        """Index chunks using ChromaDB."""
 
         raise NotImplementedError
 
     def rebuild_index(self) -> Path:
-        """Export chunks to TSV and rebuild the ColBERT index."""
+        """Export chunks and rebuild the ChromaDB collection."""
 
         conn = get_connection(self.config.db_dsn)
         try:
@@ -283,7 +283,7 @@ class RetrievalEngine:
         rows = [
             (str(chunk.id), chunk.content) for chunk in chunks if chunk.id is not None
         ]
-        return self._colbert_index().build_index(rows)
+        return self._chroma_index().build_index(rows)
 
     def search(
         self,
@@ -293,13 +293,13 @@ class RetrievalEngine:
         min_score: float | None = None,
         max_per_paper: int = 2,
     ) -> Sequence[ChunkSearchResult]:
-        """Search the ColBERT index and return ranked chunk results."""
+        """Search the ChromaDB index and return ranked chunk results."""
 
         normalized_query = query.strip()
         if not normalized_query:
             return []
 
-        ranking = self._colbert_index().search(normalized_query, top_k=top_k)
+        ranking = self._chroma_index().search(normalized_query, top_k=top_k)
 
         chunk_ids: list[int] = []
         scores: dict[int, float] = {}
@@ -543,5 +543,5 @@ class RetrievalEngine:
     def _tei_chunker(self) -> TEIChunker:
         return TEIChunker()
 
-    def _colbert_index(self) -> ColbertIndex:
-        return ColbertIndex(index_dir=self.config.index_dir, index_name=self.index_name)
+    def _chroma_index(self) -> ChromaIndex:
+        return ChromaIndex(index_dir=self.config.index_dir, collection_name=self.index_name)
