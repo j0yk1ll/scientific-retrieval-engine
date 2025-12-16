@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: retrieval-postgres
+    environment:
+      POSTGRES_USER: retrieval
+      POSTGRES_PASSWORD: retrieval
+      POSTGRES_DB: retrieval
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retrieval -d retrieval"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  grobid:
+    image: lfoppiano/grobid:0.8.1
+    container_name: retrieval-grobid
+    environment:
+      JAVA_TOOL_OPTIONS: -XX:-UseContainerSupport
+    ports:
+      - "8070:8070"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8070/api/isalive"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_data:

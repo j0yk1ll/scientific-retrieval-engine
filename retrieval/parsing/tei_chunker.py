@@ -86,7 +86,16 @@ class TEIChunker:
     def _iter_sections(
         self, node: etree._Element, path: Iterable[str]
     ) -> Iterable[tuple[list[str], list[str]]]:
-        for div in node.findall("tei:div", namespaces=NSMAP):
+        # Sort sibling <div> elements by their <head> text to provide a
+        # deterministic, alphabetic ordering of sections at each level.
+        divs = list(node.findall("tei:div", namespaces=NSMAP))
+        def _div_title(d: etree._Element) -> str:
+            h = d.find("tei:head", namespaces=NSMAP)
+            return _normalize_text(h) if h is not None else ""
+
+        divs.sort(key=_div_title)
+
+        for div in divs:
             head = div.find("tei:head", namespaces=NSMAP)
             title = _normalize_text(head) if head is not None else None
             section_path = list(path)

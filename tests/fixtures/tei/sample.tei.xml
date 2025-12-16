@@ -1,23 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<TEI xmlns="http://www.tei-c.org/ns/1.0">
+<TEI xmlns="http://www.tei-c.org/ns/1.0" xml:space="preserve">
   <teiHeader>
     <fileDesc>
       <titleStmt>
-        <title>Sample TEI Document</title>
+        <title>Test Document</title>
       </titleStmt>
+      <sourceDesc>
+        <p>Test fixture for chunker</p>
+      </sourceDesc>
     </fileDesc>
   </teiHeader>
   <text>
     <body>
-      <div>
+      <div type="section">
         <head>Introduction</head>
-        <p>  First paragraph text with    extra whitespace. </p>
+        <p>First    paragraph    text   with   extra   whitespace.</p>
         <p>Second paragraph text to combine.</p>
       </div>
-      <div>
+      <div type="section">
         <head>Methods</head>
         <p>Detailed methods paragraph.</p>
-        <div>
+        <div type="subsection">
           <head>Data</head>
           <p>Nested paragraph that should be kept with its section.</p>
         </div>

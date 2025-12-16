@@ -14,7 +14,7 @@ from retrieval.storage.dao import (
 )
 from retrieval.storage.db import get_connection
 from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, PaperSource
-from scripts.migrate import run_migrations
+from retrieval.storage.migrations import run_migrations
 
 
 @pytest.mark.skipif(

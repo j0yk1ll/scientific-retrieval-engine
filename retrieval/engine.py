@@ -174,6 +174,73 @@ class RetrievalEngine:
             source_metadata={"venue": work.venue},
         )
 
+    def ingest_from_local_pdf(
+        self,
+        local_pdf_path: Path | str,
+        *,
+        title: str,
+        abstract: str | None = None,
+        doi: str | None = None,
+        published_at: date | None = None,
+        authors: Sequence[str] | None = None,
+        source_name: str = "local_pdf",
+        source_identifier: str | None = None,
+        source_metadata: dict | None = None,
+    ) -> Paper:
+        """Ingest a paper from a local PDF file with provided metadata.
+
+        This method bypasses the full-text resolution step and directly uses
+        the provided PDF file for parsing and chunking.
+        """
+        pdf_file = Path(local_pdf_path)
+        if not pdf_file.is_file():
+            raise AcquisitionError(f"Local PDF file not found: {pdf_file}")
+
+        normalized_title = title.strip()
+        if not normalized_title:
+            raise ValueError("title is required for ingestion")
+
+        conn = get_connection(self.config.db_dsn)
+        paper: Paper | None = None
+        try:
+            paper = self._persist_paper_metadata(
+                conn,
+                title=normalized_title,
+                abstract=abstract,
+                doi=doi,
+                published_at=published_at,
+                authors=authors,
+            )
+            self._record_source(
+                conn,
+                paper_id=paper.id,
+                source_name=source_name,
+                source_identifier=source_identifier or str(pdf_file),
+                metadata=source_metadata,
+            )
+
+            # Copy PDF to data directory
+            pdf_disk_path = self._store_local_pdf(conn, paper_id=paper.id, source_path=pdf_file)
+
+            _tei_record, tei_xml = self._parse_and_store(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
+            )
+
+            self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+
+            conn.commit()
+            return paper
+        except ParseError:
+            if paper is not None:
+                self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
+                conn.commit()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     # ------------------------------------------------------------------
     # Individual pipeline stages
     # ------------------------------------------------------------------
@@ -377,6 +444,24 @@ class RetrievalEngine:
         ]
         persisted = upsert_paper_files(conn, paper_id, files)[0]
         return persisted, path
+
+    def _store_local_pdf(self, conn, *, paper_id: int, source_path: Path) -> Path:
+        """Copy a local PDF to the data directory and record it."""
+        pdf_content = source_path.read_bytes()
+        path = pdf_path(self.config.data_dir, str(paper_id))
+        atomic_write_bytes(path, pdf_content)
+        checksum = sha256_bytes(pdf_content)
+
+        files = [
+            PaperFile(
+                paper_id=paper_id,
+                file_type="pdf",
+                location=str(path),
+                checksum=checksum,
+            )
+        ]
+        upsert_paper_files(conn, paper_id, files)
+        return path
 
     def _parse_and_store(self, conn, *, paper_id: int, pdf_path_on_disk: Path) -> tuple[PaperFile, str]:
         tei_xml = self.parse_document(pdf_path_on_disk)

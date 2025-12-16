@@ -25,7 +25,7 @@ class GrobidClient:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
 
-        self.base_url = base_url.rstrip("/")
+        self.base_url = str(base_url).rstrip("/")
         self.session = session or requests.Session()
         self.timeout = timeout
 

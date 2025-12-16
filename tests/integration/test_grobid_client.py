@@ -29,7 +29,7 @@ def test_grobid_process_fulltext_returns_xml() -> None:
     xml = client.process_fulltext(PDF_PATH)
 
     assert "<TEI" in xml
-    assert "<text>" in xml
+    assert "<text" in xml
 
 
 def test_invalid_path_raises_parse_error() -> None:

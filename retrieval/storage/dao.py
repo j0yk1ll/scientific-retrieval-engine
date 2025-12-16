@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+import datetime
+from typing import Any, Iterable, Sequence
 
 from psycopg import Connection
 from psycopg.rows import dict_row
+from psycopg.types.json import Json
 
 from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, PaperSource
+
+
+def _serialize_metadata(metadata: dict | None) -> dict | None:
+    """Convert non-JSON-serializable types (like datetime.date) to JSON-compatible formats."""
+    if metadata is None:
+        return None
+    
+    def _convert_value(value: Any) -> Any:
+        if isinstance(value, (datetime.date, datetime.datetime)):
+            return value.isoformat()
+        elif isinstance(value, dict):
+            return {k: _convert_value(v) for k, v in value.items()}
+        elif isinstance(value, (list, tuple)):
+            return [_convert_value(item) for item in value]
+        return value
+    
+    return {k: _convert_value(v) for k, v in metadata.items()}
 
 
 def upsert_paper(conn: Connection, paper: Paper) -> Paper:
@@ -132,7 +151,7 @@ def insert_paper_source(conn: Connection, source: PaperSource) -> PaperSource:
                 source.paper_id,
                 source.source_name,
                 source.source_identifier,
-                source.metadata,
+                Json(_serialize_metadata(source.metadata)),
             ),
         )
         row = cur.fetchone()

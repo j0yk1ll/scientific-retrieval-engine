@@ -10,7 +10,7 @@ from retrieval.config import RetrievalConfig
 from retrieval.engine import RetrievalEngine
 from retrieval.exceptions import ParseError
 from retrieval.storage.db import get_connection
-from scripts.migrate import run_migrations
+from retrieval.storage.migrations import run_migrations
 
 
 def _load_openalex_fixture() -> dict:
