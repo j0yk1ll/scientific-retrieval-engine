@@ -11,7 +11,7 @@ A Python library providing a clean local knowledge retrieval system for tens of 
 - **Title-based preprint servers** (fallback; no ID-based lookups)
 - **GROBID** for PDF → TEI extraction
 - **Deterministic TEI chunking**
-- **ColBERT** (colbert-ai) as the only index/search engine (no extra reranker)
+- **ChromaDB** as the vector index/search engine (no extra reranker)
 - **Postgres** for metadata + chunks + provenance
 - **Docker** for external dependencies/services (Postgres, GROBID)
 
@@ -38,12 +38,6 @@ docker compose up -d
 ```bash
 # Install runtime + dev dependencies
 make install-dev
-
-# Install ColBERT (requires internet)
-make install-colbert
-
-# Or all at once:
-make install-all
 ```
 
 ### 3. Run Database Migrations
@@ -70,7 +64,7 @@ The engine is configured via environment variables (prefix `RETRIEVAL_`) or a `.
 |----------|-------------|---------|
 | `RETRIEVAL_DB_DSN` | PostgreSQL connection string | `postgresql://retrieval:retrieval@localhost:5432/retrieval` |
 | `RETRIEVAL_DATA_DIR` | Directory for downloaded documents | `./data` |
-| `RETRIEVAL_INDEX_DIR` | Directory for ColBERT index data | `./index` |
+| `RETRIEVAL_INDEX_DIR` | Directory for ChromaDB index data | `./index` |
 | `RETRIEVAL_GROBID_URL` | GROBID service endpoint | `http://localhost:8070` |
 | `RETRIEVAL_UNPAYWALL_EMAIL` | Contact email for Unpaywall API | `you@example.com` |
 | `RETRIEVAL_REQUEST_TIMEOUT_S` | HTTP request timeout (seconds) | `30.0` |
@@ -95,7 +89,7 @@ engine = RetrievalEngine(config)
 # Ingest a paper by DOI
 paper = engine.ingest_from_doi("10.1234/example.doi")
 
-# Rebuild the ColBERT index
+# Rebuild the ChromaDB index
 engine.rebuild_index()
 
 # Search for evidence
@@ -142,7 +136,7 @@ make down
 retrieval/
 ├── acquisition/     # PDF downloading, Unpaywall, preprint servers
 ├── discovery/       # OpenAlex client
-├── index/           # ColBERT indexing and search
+├── index/           # ChromaDB indexing and search
 ├── parsing/         # GROBID client, TEI chunking
 ├── retrieval/       # Search result types and postprocessing
 ├── storage/         # Database models, DAO, migrations

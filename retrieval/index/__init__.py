@@ -1,5 +1,5 @@
-"""Indexing integrations (ColBERT)."""
+"""Indexing integrations (ChromaDB)."""
 
-from .colbert import ColbertIndex
+from .chroma import ChromaIndex
 
-__all__ = ["ColbertIndex"]
+__all__ = ["ChromaIndex"]

@@ -14,7 +14,7 @@ class RetrievalConfig(BaseSettings):  # type: ignore[misc]
 
     db_dsn: str = Field(..., description="PostgreSQL DSN for metadata and chunks")
     data_dir: Path = Field(..., description="Directory for downloaded documents")
-    index_dir: Path = Field(..., description="Directory for ColBERT index data")
+    index_dir: Path = Field(..., description="Directory for ChromaDB index data")
     grobid_url: AnyHttpUrl = Field(..., description="HTTP endpoint for the GROBID service")
     unpaywall_email: str = Field(..., description="Contact email for Unpaywall requests")
     request_timeout_s: float = Field(

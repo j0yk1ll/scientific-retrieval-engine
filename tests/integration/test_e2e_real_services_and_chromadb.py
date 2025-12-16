@@ -1,4 +1,4 @@
-"""End-to-end test with real Docker services (Postgres + GROBID) and ColBERT.
+"""End-to-end test with real Docker services (Postgres + GROBID) and ChromaDB.
 
 This version adds strong PDF + GROBID preflight checks to avoid false attribution:
 - Verifies fixture PDFs are real PDFs (magic bytes, size, EOF marker heuristic).
@@ -77,11 +77,10 @@ def _pdf_diagnostics(path: Path) -> PdfDiagnostics:
     )
 
 
-def _colbert_available() -> bool:
-    """Check if ColBERT and its dependencies are installed."""
+def _chromadb_available() -> bool:
+    """Check if ChromaDB and its dependencies are installed."""
     try:
-        importlib.import_module("colbert")
-        importlib.import_module("torch")
+        importlib.import_module("chromadb")
         return True
     except ModuleNotFoundError:
         return False
@@ -117,7 +116,7 @@ def _services_available() -> bool:
     """Check if all required services are available."""
     dsn, grobid_url = _get_config()
     return (
-        _colbert_available()
+        _chromadb_available()
         and _grobid_available(grobid_url)
         and _postgres_available(dsn)
     )
@@ -181,7 +180,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
         not _services_available(),
-        reason="E2E tests require ColBERT installed and Docker services (Postgres + GROBID) running",
+        reason="E2E tests require ChromaDB installed and Docker services (Postgres + GROBID) running",
     ),
 ]
 
@@ -228,7 +227,7 @@ def engine(engine_config: RetrievalConfig) -> RetrievalEngine:
     return RetrievalEngine(engine_config)
 
 
-class TestE2ERealServicesAndColBERT:
+class TestE2ERealServicesAndChromaDB:
     """End-to-end tests with real services."""
 
     def test_ingest_local_pdfs_build_index_and_search(
@@ -242,7 +241,7 @@ class TestE2ERealServicesAndColBERT:
         1. Ingest local PDFs with metadata
         2. Parse with GROBID
         3. Chunk the TEI XML
-        4. Build ColBERT index
+        4. Build ChromaDB index
         5. Search and validate evidence bundle
         """
         # Skip if PDFs don't exist
@@ -310,11 +309,10 @@ class TestE2ERealServicesAndColBERT:
         assert paper2_chunk_count > 0, "Paper 2 should have chunks"
         assert paper1_file_count >= 2, "Paper 1 should have PDF and TEI files"
 
-        # 4. Build ColBERT index
+        # 4. Build ChromaDB index
         index_path = engine.rebuild_index()
 
         assert index_path.exists(), "Index directory should exist"
-        assert (engine.config.index_dir / "papers.tsv").exists(), "Collection TSV should exist"
 
         # 5. Search for machine learning content
         ml_results = engine.search("machine learning neural networks", top_k=5)

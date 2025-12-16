@@ -1,4 +1,4 @@
-"""Utilities for exporting chunk text for ColBERT indexing."""
+"""Utilities for exporting chunk text for indexing pipelines."""
 
 from __future__ import annotations
 
@@ -11,9 +11,8 @@ ChunkRow = Tuple[str, str]
 def export_chunks_tsv(chunks: Iterable[ChunkRow], output_path: Path) -> Path:
     """Write chunk identifiers and text to a TSV file.
 
-    The file layout is ``chunk_id<TAB>text`` per line, which is what ColBERT
-    expects for its ``collection`` input. The function returns the path to the
-    written file for convenience.
+    The file layout is ``chunk_id<TAB>text`` per line, matching the legacy
+    collection format and remaining useful for debugging.
     """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

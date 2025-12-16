@@ -61,11 +61,11 @@ test-integration:
 
 test-e2e:
 	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-	RETRIEVAL_DATA_DIR="./data" \
-	RETRIEVAL_INDEX_DIR="./index" \
-	RETRIEVAL_GROBID_URL="http://localhost:8070" \
-	RETRIEVAL_UNPAYWALL_EMAIL="test@example.com" \
-		uv run pytest tests/integration/test_e2e_real_services_and_colbert.py -v -s
+        RETRIEVAL_DATA_DIR="./data" \
+        RETRIEVAL_INDEX_DIR="./index" \
+        RETRIEVAL_GROBID_URL="http://localhost:8070" \
+        RETRIEVAL_UNPAYWALL_EMAIL="test@example.com" \
+                uv run pytest tests/integration/test_e2e_real_services_and_chromadb.py -v -s
 
 # Code quality
 lint:
