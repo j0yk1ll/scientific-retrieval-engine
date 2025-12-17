@@ -99,7 +99,30 @@ bundle = engine.evidence_bundle("machine learning methods", top_k=10)
 for evidence_paper in bundle.papers:
     print(f"Paper: {evidence_paper.paper.title}")
     for chunk in evidence_paper.chunks:
-        print(f"  - {chunk.content[:100]}...")
+    print(f"  - {chunk.content[:100]}...")
+```
+
+### CLI ingestion
+
+Use the provided CLI to ingest a PDF by URL (e.g., an arXiv PDF):
+
+```bash
+retrieval-cli ingest-url "https://arxiv.org/pdf/2512.04854"
+```
+
+Provide metadata as needed:
+
+```bash
+retrieval-cli ingest-url "https://example.com/paper.pdf" --title "My Paper" --author "First Author" \
+  --author "Second Author"
+```
+
+### Streamlit explorer
+
+Launch the Streamlit UI to browse ingested papers/chunks and run semantic searches:
+
+```bash
+streamlit run retrieval/apps/explorer.py
 ```
 
 ## Docker Services
