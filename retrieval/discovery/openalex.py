@@ -14,12 +14,14 @@ class OpenAlexWork:
     """Normalized representation of an OpenAlex work."""
 
     openalex_id: str
+    openalex_url: str
     doi: Optional[str]
     title: Optional[str]
     year: Optional[int]
     venue: Optional[str]
     abstract: Optional[str]
     authors: List[str]
+    referenced_works: List[str]
 
 
 class OpenAlexClient:
@@ -85,15 +87,18 @@ class OpenAlexClient:
         venue = self._normalize_venue(data.get("host_venue"))
         abstract = self._extract_abstract(data)
         authors = self._extract_authors(data.get("authorships", []))
+        referenced_works = [self._normalize_openalex_id(item) for item in data.get("referenced_works", [])]
 
         return OpenAlexWork(
             openalex_id=openalex_id,
+            openalex_url=f"https://openalex.org/{openalex_id}" if openalex_id else "",
             doi=doi,
             title=title,
             year=year,
             venue=venue,
             abstract=abstract,
             authors=authors,
+            referenced_works=referenced_works,
         )
 
     def _extract_authors(self, authorships: Iterable[Dict[str, Any]]) -> List[str]:

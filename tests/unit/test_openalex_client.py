@@ -34,6 +34,8 @@ def test_get_work_normalizes_response(openalex_work_payload: dict) -> None:
     assert work.venue == "Journal of Testing"
     assert work.abstract == "example openalex abstract text for text"
     assert work.authors == ["Alice Smith", "Bob Jones"]
+    assert work.referenced_works == ["WREF1", "WREF2"]
+    assert work.openalex_url == "https://openalex.org/W123456789"
 
 
 @responses.activate
@@ -67,6 +69,7 @@ def test_search_works_fetches_multiple_results(openalex_work_payload: dict) -> N
     assert second.openalex_id == "W987654321"
     assert second.abstract == "plain abstract text"
     assert second.authors == ["Charlie Example"]
+    assert second.referenced_works == []
 
     parsed = urlparse(responses.calls[0].request.url)
     params = parse_qs(parsed.query)

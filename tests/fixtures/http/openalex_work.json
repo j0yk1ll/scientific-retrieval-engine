@@ -6,6 +6,10 @@
   "host_venue": {
     "display_name": "Journal of Testing"
   },
+  "referenced_works": [
+    "https://openalex.org/WREF1",
+    "https://openalex.org/WREF2"
+  ],
   "abstract_inverted_index": {
     "example": [0],
     "openalex": [1],
