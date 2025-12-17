@@ -8,6 +8,7 @@ from typing import Iterable, List
 from lxml import etree
 
 from retrieval.exceptions import ParseError
+from retrieval.parsing.citations import extract_citations
 
 NSMAP = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -26,6 +27,7 @@ class TEIChunk:
     id: str
     section: str
     text: str
+    citations: List[str]
 
 
 class TEIChunker:
@@ -51,11 +53,13 @@ class TEIChunker:
             for paragraph in paragraphs:
                 candidate = "\n\n".join(buffer + [paragraph]) if buffer else paragraph
                 if buffer and len(candidate) > self.max_chars:
+                    chunk_text = "\n\n".join(buffer)
                     chunks.append(
                         TEIChunk(
                             id=f"chunk-{counter}",
                             section=" > ".join(section_path),
-                            text="\n\n".join(buffer),
+                            text=chunk_text,
+                            citations=extract_citations(chunk_text),
                         )
                     )
                     counter += 1
@@ -63,11 +67,13 @@ class TEIChunker:
                 else:
                     buffer = [candidate] if not buffer else buffer + [paragraph]
             if buffer:
+                chunk_text = "\n\n".join(buffer)
                 chunks.append(
                     TEIChunk(
                         id=f"chunk-{counter}",
                         section=" > ".join(section_path),
-                        text="\n\n".join(buffer),
+                        text=chunk_text,
+                        citations=extract_citations(chunk_text),
                     )
                 )
                 counter += 1

@@ -17,6 +17,7 @@ class ChunkSearchResult:
     chunk_order: int
     content: str
     score: float
+    citations: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

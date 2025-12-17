@@ -9,6 +9,7 @@ import streamlit as st
 
 from retrieval.config import RetrievalConfig
 from retrieval.engine import RetrievalEngine
+from retrieval.parsing.citations import extract_citations
 from retrieval.retrieval.types import ChunkSearchResult
 from retrieval.storage.dao import get_all_papers, get_chunks_for_paper, get_papers_by_ids
 from retrieval.storage.db import get_connection
@@ -20,6 +21,15 @@ class PaperDisplay:
     title: str
     doi: str | None
     abstract: str | None
+    published_at: str | None
+
+
+@dataclass
+class ChunkDisplay:
+    id: int
+    chunk_order: int
+    content: str
+    citations: list[str]
 
 
 @st.cache_resource
@@ -38,29 +48,49 @@ def load_papers() -> list[PaperDisplay]:
     with get_connection(config.db_dsn) as conn:
         papers = get_all_papers(conn)
     return [
-        PaperDisplay(id=paper.id, title=paper.title, doi=paper.doi, abstract=paper.abstract)
+        PaperDisplay(
+            id=paper.id,
+            title=paper.title,
+            doi=paper.doi,
+            abstract=paper.abstract,
+            published_at=paper.published_at.isoformat() if paper.published_at else None,
+        )
         for paper in papers
         if paper.id is not None
     ]
 
 
 @st.cache_data(show_spinner=False)
-def load_chunks(paper_id: int) -> Sequence[str]:
+def load_chunks(paper_id: int) -> list[ChunkDisplay]:
     config = get_config()
     with get_connection(config.db_dsn) as conn:
         chunks = get_chunks_for_paper(conn, paper_id)
-    return [chunk.content for chunk in chunks]
+    return [
+        ChunkDisplay(
+            id=chunk.id or idx,
+            chunk_order=chunk.chunk_order,
+            content=chunk.content,
+            citations=extract_citations(chunk.content),
+        )
+        for idx, chunk in enumerate(chunks)
+        if chunk.id is not None
+    ]
 
 
-def _render_chunk_list(chunks: Sequence[str]) -> None:
+def _render_chunk_list(chunks: Sequence[ChunkDisplay]) -> None:
     st.subheader("Chunks")
     if not chunks:
         st.info("No chunks have been generated for this paper yet.")
         return
 
-    for idx, chunk in enumerate(chunks, start=1):
-        with st.expander(f"Chunk {idx}"):
-            st.write(chunk)
+    for chunk in chunks:
+        with st.expander(f"Chunk {chunk.chunk_order + 1}"):
+            st.markdown(f"**Chunk ID:** {chunk.id}")
+            if chunk.citations:
+                st.markdown(
+                    f"**Citations:** {', '.join(chunk.citations)}",
+                )
+            st.write(chunk.content)
 
 
 def _render_search_results(results: Iterable[ChunkSearchResult]) -> None:
@@ -83,6 +113,8 @@ def _render_search_results(results: Iterable[ChunkSearchResult]) -> None:
             st.markdown(f"**Chunk ID:** {result.chunk_id}")
             st.markdown(f"**Score:** {result.score:.4f}")
             st.markdown(f"**Chunk order:** {result.chunk_order}")
+            if result.citations:
+                st.markdown(f"**Citations:** {', '.join(result.citations)}")
             st.write(result.content)
 
 
@@ -170,11 +202,20 @@ def render_app() -> None:
             st.markdown(f"**Title:** {selection.title}")
             if selection.doi:
                 st.markdown(f"**DOI:** {selection.doi}")
+            if selection.published_at:
+                st.markdown(f"**Published:** {selection.published_at}")
             if selection.abstract:
                 st.markdown("**Abstract:**")
                 st.write(selection.abstract)
 
             chunks = load_chunks(selection.id)
+            paper_citations = sorted({c for chunk in chunks for c in chunk.citations})
+            if paper_citations:
+                st.markdown(
+                    f"**Detected citations across chunks:** {', '.join(paper_citations)}"
+                )
+            else:
+                st.markdown("**Detected citations across chunks:** None")
             _render_chunk_list(chunks)
 
     with search_tab:

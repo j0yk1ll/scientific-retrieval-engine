@@ -18,11 +18,13 @@ from retrieval.config import RetrievalConfig
 from retrieval.discovery.openalex import OpenAlexClient, OpenAlexWork
 from retrieval.exceptions import AcquisitionError, ConfigError, ParseError
 from retrieval.index import ChromaIndex
+from retrieval.parsing.citations import extract_citations
 from retrieval.parsing.grobid_client import GrobidClient
 from retrieval.parsing.tei_chunker import TEIChunk, TEIChunker
 from retrieval.retrieval.postprocess import postprocess_results
 from retrieval.retrieval.types import ChunkSearchResult, EvidenceBundle
 from retrieval.storage.dao import (
+    delete_paper_files,
     get_all_chunks,
     get_chunks_by_ids,
     get_papers_by_ids,
@@ -81,6 +83,7 @@ class RetrievalEngine:
 
         conn = get_connection(self.config.db_dsn)
         paper: Paper | None = None
+        pdf_path_on_disk: Path | None = None
         try:
             paper = self._persist_paper_metadata(
                 conn,
@@ -102,7 +105,10 @@ class RetrievalEngine:
             if candidate is None:
                 raise AcquisitionError("Unable to resolve a full-text PDF for ingestion")
 
-            _, pdf_disk_path = self._download_and_store_pdf(conn, paper_id=paper.id, candidate=candidate)
+            _, pdf_disk_path = self._download_and_store_pdf(
+                conn, paper_id=paper.id, candidate=candidate
+            )
+            pdf_path_on_disk = pdf_disk_path
 
             _tei_record, tei_xml = self._parse_and_store(
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
@@ -111,13 +117,23 @@ class RetrievalEngine:
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
+
             conn.commit()
             return paper
         except ParseError:
             self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
             conn.commit()
             raise
         except Exception:
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
             conn.rollback()
             raise
         finally:
@@ -204,6 +220,7 @@ class RetrievalEngine:
 
         conn = get_connection(self.config.db_dsn)
         paper: Paper | None = None
+        pdf_path_on_disk: Path | None = None
         try:
             paper = self._persist_paper_metadata(
                 conn,
@@ -222,7 +239,10 @@ class RetrievalEngine:
             )
 
             # Copy PDF to data directory
-            pdf_disk_path = self._store_local_pdf(conn, paper_id=paper.id, source_path=pdf_file)
+            pdf_disk_path = self._store_local_pdf(
+                conn, paper_id=paper.id, source_path=pdf_file
+            )
+            pdf_path_on_disk = pdf_disk_path
 
             _tei_record, tei_xml = self._parse_and_store(
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
@@ -231,14 +251,24 @@ class RetrievalEngine:
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
+
             conn.commit()
             return paper
         except ParseError:
             if paper is not None:
                 self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
+                self._cleanup_downloaded_pdf(
+                    conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+                )
                 conn.commit()
             raise
         except Exception:
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
             conn.rollback()
             raise
         finally:
@@ -273,6 +303,7 @@ class RetrievalEngine:
 
         conn = get_connection(self.config.db_dsn)
         paper: Paper | None = None
+        pdf_path_on_disk: Path | None = None
         try:
             paper = self._persist_paper_metadata(
                 conn,
@@ -300,6 +331,7 @@ class RetrievalEngine:
             _, pdf_disk_path = self._download_and_store_pdf(
                 conn, paper_id=paper.id, candidate=candidate
             )
+            pdf_path_on_disk = pdf_disk_path
 
             _tei_record, tei_xml = self._parse_and_store(
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
@@ -308,14 +340,24 @@ class RetrievalEngine:
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
+
             conn.commit()
             return paper
         except ParseError:
             if paper is not None:
                 self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
+                self._cleanup_downloaded_pdf(
+                    conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+                )
                 conn.commit()
             raise
         except Exception:
+            self._cleanup_downloaded_pdf(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+            )
             conn.rollback()
             raise
         finally:
@@ -411,6 +453,7 @@ class RetrievalEngine:
                     chunk_order=chunk.chunk_order,
                     content=chunk.content,
                     score=scores.get(chunk_id, 0.0),
+                    citations=tuple(self._extract_citations(chunk.content)),
                 )
             )
 
@@ -577,6 +620,22 @@ class RetrievalEngine:
             for index, chunk in enumerate(tei_chunks)
         ]
         return insert_chunks(conn, chunk_models)
+
+    def _cleanup_downloaded_pdf(
+        self, conn, *, paper_id: int, pdf_path_on_disk: Path | None
+    ) -> None:
+        """Remove downloaded PDF assets once processing has completed."""
+
+        if pdf_path_on_disk and pdf_path_on_disk.exists():
+            try:
+                pdf_path_on_disk.unlink()
+            except OSError:
+                pass
+
+        delete_paper_files(conn, paper_id, ["pdf"])
+
+    def _extract_citations(self, text: str) -> list[str]:
+        return extract_citations(text)
 
     def _index_chunks(self, chunks: list[Chunk]) -> None:
         """Index chunks in ChromaDB."""

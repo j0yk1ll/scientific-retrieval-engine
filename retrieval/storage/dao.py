@@ -133,6 +133,18 @@ def upsert_paper_files(conn: Connection, paper_id: int, files: Sequence[PaperFil
     return inserted
 
 
+def delete_paper_files(conn: Connection, paper_id: int, file_types: Sequence[str]) -> None:
+    """Remove file records for ``paper_id`` that match ``file_types``."""
+
+    if not file_types:
+        return
+
+    sql = "DELETE FROM paper_files WHERE paper_id = %s AND file_type = ANY(%s)"
+
+    with conn.cursor() as cur:
+        cur.execute(sql, (paper_id, list(file_types)))
+
+
 def insert_paper_source(conn: Connection, source: PaperSource) -> PaperSource:
     """Insert a paper source and return the persisted record."""
 
