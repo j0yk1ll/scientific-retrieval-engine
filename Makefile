@@ -84,12 +84,6 @@ install:
 install-dev:
 	uv sync --group dev
 
-install-tests:
-	uv sync --group tests
-
-install-all:
-	uv sync --all-groups
-
 # Cleanup
 clean:
 	rm -rf .pytest_cache/

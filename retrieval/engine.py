@@ -108,7 +108,8 @@ class RetrievalEngine:
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
             )
 
-            self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            self._index_chunks(chunks)
 
             conn.commit()
             return paper
@@ -227,7 +228,8 @@ class RetrievalEngine:
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
             )
 
-            self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            self._index_chunks(chunks)
 
             conn.commit()
             return paper
@@ -303,7 +305,8 @@ class RetrievalEngine:
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
             )
 
-            self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            self._index_chunks(chunks)
 
             conn.commit()
             return paper
@@ -574,6 +577,14 @@ class RetrievalEngine:
             for index, chunk in enumerate(tei_chunks)
         ]
         return insert_chunks(conn, chunk_models)
+
+    def _index_chunks(self, chunks: list[Chunk]) -> None:
+        """Index chunks in ChromaDB."""
+        rows = [
+            (str(chunk.id), chunk.content) for chunk in chunks if chunk.id is not None
+        ]
+        if rows:
+            self._chroma_index().add_documents(rows)
 
     def _metadata_from_openalex(self, *, doi: str) -> dict:
         client = self._openalex_client()

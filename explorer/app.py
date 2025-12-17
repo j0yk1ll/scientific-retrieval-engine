@@ -2,16 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Add project root to path so imports work when running via streamlit run
-try:
-    import retrieval  # noqa: F401
-except ModuleNotFoundError:
-    project_root = Path(__file__).resolve().parents[2]
-    sys.path.insert(0, str(project_root))
-
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
@@ -96,20 +86,80 @@ def _render_search_results(results: Iterable[ChunkSearchResult]) -> None:
             st.write(result.content)
 
 
+def render_ingest_tab() -> None:
+    """Render the paper ingestion tab."""
+    st.header("Ingest Paper from URL")
+    st.markdown("Index a paper by providing a direct PDF URL (e.g., from arXiv, bioRxiv, or any accessible PDF).")
+    
+    engine = get_engine()
+    
+    with st.form("ingest_form"):
+        pdf_url = st.text_input(
+            "PDF URL",
+            placeholder="https://arxiv.org/pdf/2301.12345.pdf",
+            help="Direct link to a PDF file"
+        )
+        
+        st.markdown("**Optional Metadata**")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            title = st.text_input("Title", help="Leave blank to auto-detect from URL")
+            doi = st.text_input("DOI", placeholder="10.1234/example")
+        
+        with col2:
+            published_at = st.date_input("Publication Date", value=None)
+            authors = st.text_input("Authors", placeholder="Comma-separated list")
+        
+        abstract = st.text_area("Abstract", height=100)
+        
+        submit = st.form_submit_button("Ingest Paper", type="primary")
+        
+        if submit:
+            if not pdf_url.strip():
+                st.error("Please provide a PDF URL")
+            else:
+                try:
+                    with st.spinner("Ingesting paper... This may take a few minutes."):
+                        author_list = [a.strip() for a in authors.split(",")] if authors.strip() else None
+                        
+                        paper = engine.ingest_from_url(
+                            pdf_url=pdf_url.strip(),
+                            title=title.strip() or None,
+                            abstract=abstract.strip() or None,
+                            doi=doi.strip() or None,
+                            published_at=published_at if published_at else None,
+                            authors=author_list,
+                        )
+                        
+                        st.success(f"✅ Successfully ingested paper: **{paper.title}** (ID: {paper.id})")
+                        st.info("The paper has been indexed and is now available for search.")
+                        
+                        # Clear the cache so the new paper shows up
+                        load_papers.clear()
+                        
+                except Exception as e:
+                    st.error(f"Failed to ingest paper: {str(e)}")
+                    st.exception(e)
+
+
 def render_app() -> None:
     st.set_page_config(page_title="Scientific Retrieval Explorer", layout="wide")
     st.title("Scientific Retrieval Explorer")
-    st.caption("Inspect ingested papers, their chunks, and semantic search results.")
+    st.caption("Index papers, inspect ingested content, and perform semantic search.")
 
     engine = get_engine()
 
-    paper_tab, search_tab = st.tabs(["Papers & Chunks", "Semantic Search"])
+    ingest_tab, paper_tab, search_tab = st.tabs(["Ingest Paper", "Papers & Chunks", "Semantic Search"])
+
+    with ingest_tab:
+        render_ingest_tab()
 
     with paper_tab:
         st.header("Papers")
         papers = load_papers()
         if not papers:
-            st.warning("No papers have been ingested yet.")
+            st.warning("No papers have been ingested yet. Use the 'Ingest Paper' tab to add papers.")
         else:
             selection = st.selectbox(
                 "Select a paper",

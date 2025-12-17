@@ -36,7 +36,10 @@ docker compose up -d
 ### 2. Install Dependencies
 
 ```bash
-# Install runtime + dev dependencies
+# Install runtime
+make install
+
+# Install runtime + dev
 make install-dev
 ```
 
@@ -102,27 +105,12 @@ for evidence_paper in bundle.papers:
     print(f"  - {chunk.content[:100]}...")
 ```
 
-### CLI ingestion
-
-Use the provided CLI to ingest a PDF by URL (e.g., an arXiv PDF):
-
-```bash
-retrieval-cli ingest-url "https://arxiv.org/pdf/2512.04854"
-```
-
-Provide metadata as needed:
-
-```bash
-retrieval-cli ingest-url "https://example.com/paper.pdf" --title "My Paper" --author "First Author" \
-  --author "Second Author"
-```
-
 ### Streamlit explorer
 
 Launch the Streamlit UI to browse ingested papers/chunks and run semantic searches:
 
 ```bash
-streamlit run retrieval/apps/explorer.py
+uv run streamlit run explorer/app.py
 ```
 
 ## Docker Services

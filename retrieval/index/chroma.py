@@ -61,6 +61,25 @@ class ChromaIndex:
 
         return self.index_dir
 
+    def add_documents(self, chunks: Iterable[ChunkRow]) -> None:
+        """Add or update chunks in the Chroma collection without rebuilding."""
+
+        Client, DefaultEmbeddingFunction, _errors_mod = self._import_chromadb()
+
+        # Use HTTP client for remote ChromaDB server
+        client = Client(host=self.chroma_url)
+        collection = client.get_or_create_collection(
+            name=self.collection_name,
+            embedding_function=self.embedding_function or DefaultEmbeddingFunction(),
+        )
+
+        chunk_list = list(chunks)
+        if chunk_list:
+            ids = [chunk_id for chunk_id, _text in chunk_list]
+            documents = [text for _chunk_id, text in chunk_list]
+            metadatas = [{"chunk_id": chunk_id} for chunk_id in ids]
+            collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+
     def search(self, query: str, *, top_k: int = 10) -> List[ChromaSearchResult]:
         """Search the Chroma collection and return ``(chunk_id, score)`` pairs."""
 
