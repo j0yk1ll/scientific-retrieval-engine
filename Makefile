@@ -6,9 +6,9 @@ help:
 	@echo "  up                - Start Docker services (Postgres + GROBID)"
 	@echo "  down              - Stop Docker services"
 	@echo "  logs              - Tail Docker service logs"
-        @echo "  migrate           - Run database migrations to latest"
-        @echo "  migrate-downgrade - Rollback last migration"
-        @echo "  migrate-history   - Show migration history"
+	@echo "  migrate           - Run database migrations to latest"
+	@echo "  migrate-downgrade - Rollback last migration"
+	@echo "  migrate-history   - Show migration history"
 	@echo "  migrate-current   - Show current migration version"
 	@echo "  test              - Run all tests"
 	@echo "  test-e2e          - Run E2E tests (requires Docker services)"
@@ -30,7 +30,7 @@ down:
 	docker compose down
 
 logs:
-        docker compose logs -f
+	docker compose logs -f
 
 # Database
 migrate:
@@ -78,11 +78,11 @@ test-integration:
 
 test-e2e:
 	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-        RETRIEVAL_DATA_DIR="./data" \
-        RETRIEVAL_INDEX_DIR="./index" \
-        RETRIEVAL_GROBID_URL="http://localhost:8070" \
-        RETRIEVAL_UNPAYWALL_EMAIL="test@example.com" \
-                uv run pytest tests/integration/test_e2e_real_services_and_chromadb.py -v -s
+	RETRIEVAL_DATA_DIR="./data" \
+	RETRIEVAL_INDEX_DIR="./index" \
+	RETRIEVAL_GROBID_URL="http://localhost:8070" \
+	RETRIEVAL_UNPAYWALL_EMAIL="test@example.com" \
+	uv run pytest tests/integration/test_e2e_real_services_and_chromadb.py -v -s
 
 # Code quality
 lint:
