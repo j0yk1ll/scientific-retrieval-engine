@@ -102,15 +102,25 @@ bundle = engine.evidence_bundle("machine learning methods", top_k=10)
 for evidence_paper in bundle.papers:
     print(f"Paper: {evidence_paper.paper.title}")
     for chunk in evidence_paper.chunks:
-    print(f"  - {chunk.content[:100]}...")
+        print(f"  - {chunk.content[:100]}...")
 ```
 
-### Streamlit explorer
+### Command-line interface
 
-Launch the Streamlit UI to browse ingested papers/chunks and run semantic searches:
+Use the bundled CLI to ingest papers, inspect stored content, and query the index:
 
 ```bash
-uv run streamlit run explorer/app.py
+# Ingest a PDF directly from a URL
+uv run cli.py index https://example.com/paper.pdf
+
+# List all indexed papers with TEI metadata
+uv run cli.py papers
+
+# List all indexed chunks
+uv run cli.py chunks
+
+# Search for top results
+uv run cli.py query "graph neural networks"
 ```
 
 ## Docker Services
