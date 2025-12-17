@@ -1,4 +1,4 @@
-.PHONY: help up down logs migrate test test-e2e lint typecheck install install-dev clean explorer
+.PHONY: help up down logs migrate test test-e2e lint typecheck install install-dev clean explorer reset-db
 
 # Default target
 help:
@@ -52,6 +52,23 @@ migrate-history:
 migrate-current:
 	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
 		uv run alembic current
+
+# Reset local database: stop/start Postgres, recreate DB, run migrations
+reset-db:
+	@echo "Resetting local Postgres database..."
+	@echo "Stopping Postgres container if running"
+	-docker compose stop postgres
+	@echo "Starting Postgres container"
+	docker compose up -d postgres
+	@echo "Waiting for Postgres container to report healthy..."
+	@timeout 120 sh -c "until [ \"\$$(docker inspect -f '{{.State.Health.Status}}' retrieval-postgres 2>/dev/null)\" = \"healthy\" ]; do sleep 1; done" || \
+		(echo "Postgres did not become healthy in time" && exit 1)
+	@echo "Dropping and recreating 'retrieval' database inside Postgres container"
+	docker exec -i retrieval-postgres psql -U retrieval -d postgres -c "DROP DATABASE IF EXISTS retrieval;"
+	docker exec -i retrieval-postgres psql -U retrieval -d postgres -c "CREATE DATABASE retrieval OWNER retrieval;"
+	@echo "Running migrations against recreated database"
+	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
+		uv run alembic upgrade head
 
 # Testing
 test:
