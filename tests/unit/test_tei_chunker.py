@@ -25,6 +25,7 @@ def test_chunker_orders_sections_and_respects_max_chars() -> None:
     assert chunks[1].text == "Second paragraph text to combine."
     assert chunks[2].text == "Detailed methods paragraph."
     assert chunks[3].text == "Nested paragraph that should be kept with its section."
+    assert all(not chunk.citations for chunk in chunks)
 
 
 def test_chunker_raises_for_missing_body() -> None:
