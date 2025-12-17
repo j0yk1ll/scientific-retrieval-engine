@@ -69,5 +69,7 @@ class Chunk(BaseModel):
     id: int | None = None
     paper_id: int
     chunk_order: int = Field(ge=0)
+    section: str | None = None
     content: str
+    citations: list[str] = Field(default_factory=list)
     created_at: datetime | None = None

@@ -230,16 +230,25 @@ def insert_chunks(conn: Connection, chunks: Iterable[Chunk]) -> list[Chunk]:
     inserted: list[Chunk] = []
     sql = (
         """
-        INSERT INTO chunks (paper_id, chunk_order, content)
-        VALUES (%s, %s, %s)
-        RETURNING id, paper_id, chunk_order, content, created_at
+        INSERT INTO chunks (paper_id, chunk_order, section, content, citations)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id, paper_id, chunk_order, section, content, citations, created_at
         """
     )
 
     with conn.transaction():
         with conn.cursor(row_factory=dict_row) as cur:
             for chunk in chunks:
-                cur.execute(sql, (chunk.paper_id, chunk.chunk_order, chunk.content))
+                cur.execute(
+                    sql,
+                    (
+                        chunk.paper_id,
+                        chunk.chunk_order,
+                        chunk.section,
+                        chunk.content,
+                        chunk.citations,
+                    ),
+                )
                 inserted.append(Chunk.model_validate(cur.fetchone()))
     return inserted
 
@@ -252,7 +261,7 @@ def get_chunks_by_ids(conn: Connection, chunk_ids: Sequence[int]) -> list[Chunk]
 
     sql = (
         """
-        SELECT id, paper_id, chunk_order, content, created_at
+        SELECT id, paper_id, chunk_order, section, content, citations, created_at
         FROM chunks
         WHERE id = ANY(%s)
         ORDER BY chunk_order, id
@@ -290,7 +299,7 @@ def get_all_chunks(conn: Connection) -> list[Chunk]:
 
     sql = (
         """
-        SELECT id, paper_id, chunk_order, content, created_at
+        SELECT id, paper_id, chunk_order, section, content, citations, created_at
         FROM chunks
         ORDER BY id
         """
@@ -324,7 +333,7 @@ def get_chunks_for_paper(conn: Connection, paper_id: int) -> list[Chunk]:
 
     sql = (
         """
-        SELECT id, paper_id, chunk_order, content, created_at
+        SELECT id, paper_id, chunk_order, section, content, citations, created_at
         FROM chunks
         WHERE paper_id = %s
         ORDER BY chunk_order, id

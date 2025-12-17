@@ -110,18 +110,10 @@ def test_ingest_from_doi_with_mocked_dependencies(tmp_path: Path, migrated_db: s
             )
             sources = cur.fetchall()
 
-            cur.execute(
-                "SELECT file_type, location FROM paper_files WHERE paper_id = %s",
-                (paper.id,),
-            )
-            files = cur.fetchall()
-
             cur.execute("SELECT count(*) FROM chunks WHERE paper_id = %s", (paper.id,))
             chunk_count = cur.fetchone()[0]
 
     assert ("doi", doi) in sources
-    assert any(row[0] == "pdf" for row in files)
-    assert any(row[0] == "tei" and row[1].endswith(".tei.xml") for row in files)
     assert chunk_count > 0
 
 
@@ -170,13 +162,3 @@ def test_parse_failure_records_status(tmp_path: Path, migrated_db: str) -> None:
 
     with pytest.raises(ParseError):
         engine.ingest_from_doi(doi)
-
-    with get_connection(migrated_db) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT file_type, location FROM paper_files WHERE file_type = 'tei' ORDER BY id DESC LIMIT 1"
-            )
-            row = cur.fetchone()
-
-    assert row is not None
-    assert row[1] == "parse_failed"

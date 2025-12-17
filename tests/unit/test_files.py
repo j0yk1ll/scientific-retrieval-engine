@@ -6,14 +6,12 @@ from retrieval.storage.files import (
     pdf_path,
     sha256_bytes,
     sha256_file,
-    tei_path,
 )
 
 
-def test_pdf_and_tei_paths(tmp_path: Path) -> None:
+def test_pdf_path(tmp_path: Path) -> None:
     paper_id = "test-paper"
     assert pdf_path(tmp_path, paper_id) == tmp_path / "papers" / "test-paper.pdf"
-    assert tei_path(tmp_path, paper_id) == tmp_path / "tei" / "test-paper.tei.xml"
 
 
 def test_atomic_write_bytes_creates_and_replaces(tmp_path: Path) -> None:

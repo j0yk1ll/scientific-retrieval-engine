@@ -15,6 +15,7 @@ class ChunkSearchResult:
     chunk_id: int
     paper_id: int
     chunk_order: int
+    section: str | None
     content: str
     score: float
     citations: tuple[str, ...] = field(default_factory=tuple)
