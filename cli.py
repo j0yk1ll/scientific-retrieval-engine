@@ -40,7 +40,7 @@ def _read_tei_xml(files: Sequence[PaperFile]) -> str | None:
 
 def _serialize_chunk(chunk: Chunk) -> dict[str, Any]:
     data = chunk.model_dump(mode="json")
-    data["citations"] = extract_citations(chunk.content)
+    data["citations"] = chunk.citations or extract_citations(chunk.content)
     return data
 
 
@@ -78,6 +78,7 @@ def _serialize_search_result(
             "id": result.chunk_id,
             "paper_id": result.paper_id,
             "chunk_order": result.chunk_order,
+            "section": result.section,
             "content": result.content,
             "score": result.score,
             "citations": list(result.citations),

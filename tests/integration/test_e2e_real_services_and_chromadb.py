@@ -303,12 +303,8 @@ class TestE2ERealServicesAndChromaDB:
                 cur.execute("SELECT COUNT(*) FROM chunks WHERE paper_id = %s", (paper2.id,))
                 paper2_chunk_count = cur.fetchone()[0]
 
-                cur.execute("SELECT COUNT(*) FROM paper_files WHERE paper_id = %s", (paper1.id,))
-                paper1_file_count = cur.fetchone()[0]
-
         assert paper1_chunk_count > 0, "Paper 1 should have chunks"
         assert paper2_chunk_count > 0, "Paper 2 should have chunks"
-        assert paper1_file_count >= 2, "Paper 1 should have PDF and TEI files"
 
         # 4. Build ChromaDB index
         index_path = engine.rebuild_index()
@@ -385,20 +381,6 @@ class TestE2ERealServicesAndChromaDB:
                 assert source[0] == "local_pdf"
                 assert PAPER1_PDF.name in source[1]
                 assert source[2]["origin"] == "e2e_test"
-
-                # Check paper_files
-                cur.execute(
-                    "SELECT file_type, location, checksum FROM paper_files WHERE paper_id = %s ORDER BY file_type",
-                    (paper.id,),
-                )
-                files = cur.fetchall()
-
-                file_types = [f[0] for f in files]
-                assert "pdf" in file_types, "Should have PDF file record"
-                assert "tei" in file_types, "Should have TEI file record"
-
-                for file_record in files:
-                    assert file_record[2] is not None, "Files should have checksums"
 
     def test_rebuild_index_is_idempotent(
         self,

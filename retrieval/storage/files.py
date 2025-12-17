@@ -14,12 +14,6 @@ def pdf_path(data_dir: Path, paper_id: str) -> Path:
     return data_dir / "papers" / f"{paper_id}.pdf"
 
 
-def tei_path(data_dir: Path, paper_id: str) -> Path:
-    """Return the canonical TEI XML path for a paper within ``data_dir``."""
-
-    return data_dir / "tei" / f"{paper_id}.tei.xml"
-
-
 def atomic_write_bytes(path: Path | str, data: bytes) -> None:
     """Atomically write ``data`` to ``path`` using a temporary file."""
 

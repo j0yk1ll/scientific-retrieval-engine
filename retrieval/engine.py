@@ -24,7 +24,6 @@ from retrieval.parsing.tei_chunker import TEIChunk, TEIChunker
 from retrieval.retrieval.postprocess import postprocess_results
 from retrieval.retrieval.types import ChunkSearchResult, EvidenceBundle
 from retrieval.storage.dao import (
-    delete_paper_files,
     get_all_chunks,
     get_chunks_by_ids,
     get_papers_by_ids,
@@ -32,17 +31,13 @@ from retrieval.storage.dao import (
     insert_paper_source,
     replace_authors,
     upsert_paper,
-    upsert_paper_files,
 )
 from retrieval.storage.db import get_connection
 from retrieval.storage.files import (
     atomic_write_bytes,
-    atomic_write_text,
     pdf_path,
-    sha256_bytes,
-    tei_path,
 )
-from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, PaperSource
+from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperSource
 
 
 class RetrievalEngine:
@@ -105,14 +100,12 @@ class RetrievalEngine:
             if candidate is None:
                 raise AcquisitionError("Unable to resolve a full-text PDF for ingestion")
 
-            _, pdf_disk_path = self._download_and_store_pdf(
+            pdf_disk_path = self._download_and_store_pdf(
                 conn, paper_id=paper.id, candidate=candidate
             )
             pdf_path_on_disk = pdf_disk_path
 
-            _tei_record, tei_xml = self._parse_and_store(
-                conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
-            )
+            tei_xml = self.parse_document(pdf_disk_path)
 
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
@@ -124,11 +117,11 @@ class RetrievalEngine:
             conn.commit()
             return paper
         except ParseError:
-            self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
-            self._cleanup_downloaded_pdf(
-                conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
-            )
-            conn.commit()
+            if paper is not None:
+                self._cleanup_downloaded_pdf(
+                    conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
+                )
+                conn.rollback()
             raise
         except Exception:
             self._cleanup_downloaded_pdf(
@@ -244,9 +237,7 @@ class RetrievalEngine:
             )
             pdf_path_on_disk = pdf_disk_path
 
-            _tei_record, tei_xml = self._parse_and_store(
-                conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
-            )
+            tei_xml = self.parse_document(pdf_disk_path)
 
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
@@ -259,11 +250,10 @@ class RetrievalEngine:
             return paper
         except ParseError:
             if paper is not None:
-                self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
                 self._cleanup_downloaded_pdf(
                     conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
                 )
-                conn.commit()
+                conn.rollback()
             raise
         except Exception:
             self._cleanup_downloaded_pdf(
@@ -328,14 +318,12 @@ class RetrievalEngine:
                 metadata=source_metadata,
             )
 
-            _, pdf_disk_path = self._download_and_store_pdf(
+            pdf_disk_path = self._download_and_store_pdf(
                 conn, paper_id=paper.id, candidate=candidate
             )
             pdf_path_on_disk = pdf_disk_path
 
-            _tei_record, tei_xml = self._parse_and_store(
-                conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
-            )
+            tei_xml = self.parse_document(pdf_disk_path)
 
             chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
             self._index_chunks(chunks)
@@ -348,11 +336,10 @@ class RetrievalEngine:
             return paper
         except ParseError:
             if paper is not None:
-                self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
                 self._cleanup_downloaded_pdf(
                     conn, paper_id=paper.id, pdf_path_on_disk=pdf_path_on_disk
                 )
-                conn.commit()
+                conn.rollback()
             raise
         except Exception:
             self._cleanup_downloaded_pdf(
@@ -451,9 +438,10 @@ class RetrievalEngine:
                     chunk_id=chunk_id,
                     paper_id=chunk.paper_id,
                     chunk_order=chunk.chunk_order,
+                    section=chunk.section,
                     content=chunk.content,
                     score=scores.get(chunk_id, 0.0),
-                    citations=tuple(self._extract_citations(chunk.content)),
+                    citations=tuple(chunk.citations or self._extract_citations(chunk.content)),
                 )
             )
 
@@ -546,7 +534,7 @@ class RetrievalEngine:
 
     def _download_and_store_pdf(
         self, conn, *, paper_id: int, candidate: FullTextCandidate
-    ) -> tuple[PaperFile, Path]:
+    ) -> Path:
         downloader = self._pdf_downloader()
         pdf_url = candidate.pdf_url or candidate.url
         if not pdf_url:
@@ -555,68 +543,26 @@ class RetrievalEngine:
         downloaded = downloader.download(pdf_url)
         path = pdf_path(self.config.data_dir, str(paper_id))
         atomic_write_bytes(path, downloaded.content)
-        checksum = sha256_bytes(downloaded.content)
-
-        files = [
-            PaperFile(
-                paper_id=paper_id,
-                file_type="pdf",
-                location=str(path),
-                checksum=checksum,
-            )
-        ]
-        persisted = upsert_paper_files(conn, paper_id, files)[0]
-        return persisted, path
+        return path
 
     def _store_local_pdf(self, conn, *, paper_id: int, source_path: Path) -> Path:
         """Copy a local PDF to the data directory and record it."""
         pdf_content = source_path.read_bytes()
         path = pdf_path(self.config.data_dir, str(paper_id))
         atomic_write_bytes(path, pdf_content)
-        checksum = sha256_bytes(pdf_content)
-
-        files = [
-            PaperFile(
-                paper_id=paper_id,
-                file_type="pdf",
-                location=str(path),
-                checksum=checksum,
-            )
-        ]
-        upsert_paper_files(conn, paper_id, files)
         return path
-
-    def _parse_and_store(self, conn, *, paper_id: int, pdf_path_on_disk: Path) -> tuple[PaperFile, str]:
-        tei_xml = self.parse_document(pdf_path_on_disk)
-        path = tei_path(self.config.data_dir, str(paper_id))
-        atomic_write_text(path, tei_xml)
-        checksum = sha256_bytes(tei_xml.encode("utf-8"))
-
-        files = [
-            PaperFile(
-                paper_id=paper_id,
-                file_type="tei",
-                location=str(path),
-                checksum=checksum,
-            )
-        ]
-        persisted = upsert_paper_files(conn, paper_id, files)[0]
-        return persisted, tei_xml
-
-    def _record_parse_status(self, conn, *, paper_id: int, status: str) -> None:
-        failure_file = PaperFile(
-            paper_id=paper_id,
-            file_type="tei",
-            location=status,
-            checksum=None,
-        )
-        upsert_paper_files(conn, paper_id, [failure_file])
 
     def _chunk_and_store(self, conn, *, paper_id: int, tei_xml: str) -> list[Chunk]:
         chunker = self._tei_chunker()
         tei_chunks: list[TEIChunk] = chunker.chunk(tei_xml)
         chunk_models = [
-            Chunk(paper_id=paper_id, chunk_order=index, content=chunk.text)
+            Chunk(
+                paper_id=paper_id,
+                chunk_order=index,
+                section=chunk.section,
+                content=chunk.text,
+                citations=chunk.citations,
+            )
             for index, chunk in enumerate(tei_chunks)
         ]
         return insert_chunks(conn, chunk_models)
@@ -631,8 +577,6 @@ class RetrievalEngine:
                 pdf_path_on_disk.unlink()
             except OSError:
                 pass
-
-        delete_paper_files(conn, paper_id, ["pdf"])
 
     def _extract_citations(self, text: str) -> list[str]:
         return extract_citations(text)
