@@ -1,4 +1,4 @@
-.PHONY: help up down logs migrate test test-e2e lint typecheck install install-dev clean explorer reset-db
+.PHONY: help up down logs migrate test test-e2e lint typecheck install install-dev clean reset-db
 
 # Default target
 help:
@@ -6,10 +6,9 @@ help:
 	@echo "  up                - Start Docker services (Postgres + GROBID)"
 	@echo "  down              - Stop Docker services"
 	@echo "  logs              - Tail Docker service logs"
-	@echo "  explorer          - Run Streamlit explorer (local)"
-	@echo "  migrate           - Run database migrations to latest"
-	@echo "  migrate-downgrade - Rollback last migration"
-	@echo "  migrate-history   - Show migration history"
+        @echo "  migrate           - Run database migrations to latest"
+        @echo "  migrate-downgrade - Rollback last migration"
+        @echo "  migrate-history   - Show migration history"
 	@echo "  migrate-current   - Show current migration version"
 	@echo "  test              - Run all tests"
 	@echo "  test-e2e          - Run E2E tests (requires Docker services)"
@@ -31,10 +30,7 @@ down:
 	docker compose down
 
 logs:
-	docker compose logs -f
-
-explorer:
-	uv run streamlit run explorer/app.py
+        docker compose logs -f
 
 # Database
 migrate:

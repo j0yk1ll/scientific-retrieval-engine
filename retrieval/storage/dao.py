@@ -104,6 +104,24 @@ def replace_authors(conn: Connection, paper_id: int, authors: Sequence[PaperAuth
     return inserted
 
 
+def get_paper_authors(conn: Connection, paper_id: int) -> list[PaperAuthor]:
+    """Fetch authors for a paper ordered by author list position."""
+
+    sql = (
+        """
+        SELECT id, paper_id, author_name, author_order, affiliation, created_at
+        FROM paper_authors
+        WHERE paper_id = %s
+        ORDER BY author_order, id
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, (paper_id,))
+        rows = cur.fetchall()
+    return [PaperAuthor.model_validate(row) for row in rows]
+
+
 def upsert_paper_files(conn: Connection, paper_id: int, files: Sequence[PaperFile]) -> list[PaperFile]:
     """Upsert paper files by deleting existing matches and inserting the new rows."""
 
@@ -145,6 +163,24 @@ def delete_paper_files(conn: Connection, paper_id: int, file_types: Sequence[str
         cur.execute(sql, (paper_id, list(file_types)))
 
 
+def get_paper_files(conn: Connection, paper_id: int) -> list[PaperFile]:
+    """Fetch file records for a paper ordered by creation time."""
+
+    sql = (
+        """
+        SELECT id, paper_id, file_type, location, checksum, created_at
+        FROM paper_files
+        WHERE paper_id = %s
+        ORDER BY created_at DESC, id DESC
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, (paper_id,))
+        rows = cur.fetchall()
+    return [PaperFile.model_validate(row) for row in rows]
+
+
 def insert_paper_source(conn: Connection, source: PaperSource) -> PaperSource:
     """Insert a paper source and return the persisted record."""
 
@@ -168,6 +204,24 @@ def insert_paper_source(conn: Connection, source: PaperSource) -> PaperSource:
         )
         row = cur.fetchone()
     return PaperSource.model_validate(row)
+
+
+def get_paper_sources(conn: Connection, paper_id: int) -> list[PaperSource]:
+    """Fetch provenance entries for a paper ordered by creation time."""
+
+    sql = (
+        """
+        SELECT id, paper_id, source_name, source_identifier, metadata, created_at
+        FROM paper_sources
+        WHERE paper_id = %s
+        ORDER BY created_at DESC, id DESC
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, (paper_id,))
+        rows = cur.fetchall()
+    return [PaperSource.model_validate(row) for row in rows]
 
 
 def insert_chunks(conn: Connection, chunks: Iterable[Chunk]) -> list[Chunk]:
