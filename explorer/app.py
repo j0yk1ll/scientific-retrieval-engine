@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import streamlit as st
 
@@ -23,6 +23,7 @@ class PaperDisplay:
     doi: str | None
     abstract: str | None
     published_at: str | None
+    raw_data: dict[str, Any]
 
 
 @dataclass
@@ -31,6 +32,7 @@ class ChunkDisplay:
     chunk_order: int
     content: str
     citations: list[str]
+    raw_data: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,7 @@ def load_papers() -> list[PaperDisplay]:
             doi=paper.doi,
             abstract=paper.abstract,
             published_at=paper.published_at.isoformat() if paper.published_at else None,
+            raw_data=paper.model_dump(mode="json"),
         )
         for paper in papers
         if paper.id is not None
@@ -84,6 +87,7 @@ def load_chunks(paper_id: int) -> list[ChunkDisplay]:
             chunk_order=chunk.chunk_order,
             content=chunk.content,
             citations=extract_citations(chunk.content),
+            raw_data=chunk.model_dump(mode="json"),
         )
         for idx, chunk in enumerate(chunks)
         if chunk.id is not None
@@ -191,6 +195,8 @@ def _render_chunk_list(chunks: Sequence[ChunkDisplay], citation_lookup: Mapping[
             st.markdown(f"**Chunk ID:** {chunk.id}")
             _render_citation_list(chunk.citations, citation_lookup)
             st.write(chunk.content)
+            st.markdown("**Raw chunk JSON**")
+            st.json(chunk.raw_data)
 
 
 def _render_search_results(results: Iterable[ChunkSearchResult]) -> None:
@@ -318,6 +324,9 @@ def render_app() -> None:
             if selection.abstract:
                 st.markdown("**Abstract:**")
                 st.write(selection.abstract)
+
+            st.markdown("**Raw paper JSON**")
+            st.json(selection.raw_data)
 
             chunks = load_chunks(selection.id)
             paper_citations = sorted({c for chunk in chunks for c in chunk.citations})
