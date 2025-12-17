@@ -538,10 +538,14 @@ class RetrievalEngine:
         return PDFDownloader(timeout=self.config.request_timeout_s)
 
     def _grobid_client(self) -> GrobidClient:
-        return GrobidClient(self.config.grobid_url, timeout=self.config.request_timeout_s)
+        return GrobidClient(str(self.config.grobid_url), timeout=self.config.request_timeout_s)
 
     def _tei_chunker(self) -> TEIChunker:
         return TEIChunker()
 
     def _chroma_index(self) -> ChromaIndex:
-        return ChromaIndex(index_dir=self.config.index_dir, collection_name=self.index_name)
+        return ChromaIndex(
+            index_dir=self.config.index_dir,
+            collection_name=self.index_name,
+            chroma_url=self.config.chroma_url,
+        )

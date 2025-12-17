@@ -78,11 +78,11 @@ def _pdf_diagnostics(path: Path) -> PdfDiagnostics:
 
 
 def _chromadb_available() -> bool:
-    """Check if ChromaDB and its dependencies are installed."""
+    """Check if ChromaDB server is reachable."""
     try:
-        importlib.import_module("chromadb")
-        return True
-    except ModuleNotFoundError:
+        response = requests.get("http://localhost:8000/api/v2/heartbeat", timeout=5)
+        return response.status_code == 200
+    except requests.RequestException:
         return False
 
 
@@ -180,7 +180,7 @@ pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
         not _services_available(),
-        reason="E2E tests require ChromaDB installed and Docker services (Postgres + GROBID) running",
+        reason="E2E tests require Docker services (Postgres + GROBID + ChromaDB) running",
     ),
 ]
 
@@ -215,6 +215,7 @@ def engine_config(tmp_path: Path, clean_database: str) -> RetrievalConfig:
         db_dsn=dsn,
         data_dir=tmp_path / "data",
         index_dir=tmp_path / "index",
+        chroma_url="http://localhost:8000",
         grobid_url=grobid_url,
         unpaywall_email="e2e-test@example.com",
         request_timeout_s=180.0,  # Grobid can be slow; be generous in integration tests

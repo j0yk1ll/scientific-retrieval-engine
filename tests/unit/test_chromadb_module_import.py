@@ -13,7 +13,11 @@ def test_missing_chromadb_raises_index_error(monkeypatch, tmp_path):
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
 
-    index = ChromaIndex(index_dir=tmp_path, collection_name="test-index")
+    index = ChromaIndex(
+        index_dir=tmp_path,
+        collection_name="test-index",
+        chroma_url="http://localhost:8000",
+    )
 
     with pytest.raises(IndexError) as excinfo:
         index.build_index([("c1", "text")])

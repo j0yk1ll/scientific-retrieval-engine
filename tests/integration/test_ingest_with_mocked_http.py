@@ -40,6 +40,7 @@ def _make_config(tmp_path: Path, dsn: str) -> RetrievalConfig:
         db_dsn=dsn,
         data_dir=tmp_path / "data",
         index_dir=tmp_path / "index",
+        chroma_url="http://localhost:8000",
         grobid_url="http://grobid.test",
         unpaywall_email="tester@example.com",
         request_timeout_s=1.0,

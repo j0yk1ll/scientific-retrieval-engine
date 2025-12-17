@@ -11,6 +11,7 @@ def _make_config(tmp_path: Path) -> RetrievalConfig:
         db_dsn="postgresql://localhost/placeholder",
         data_dir=tmp_path / "data",
         index_dir=tmp_path / "index",
+        chroma_url="http://localhost:8000",
         grobid_url="http://example.com",
         unpaywall_email="tester@example.com",
     )

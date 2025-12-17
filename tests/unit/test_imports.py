@@ -9,6 +9,7 @@ def test_config_and_engine_instantiation(tmp_path: Path) -> None:
         db_dsn="postgresql://user:pass@localhost:5432/db",
         data_dir=tmp_path / "data",
         index_dir=tmp_path / "index",
+        chroma_url="http://localhost:8000",
         grobid_url="http://localhost:8070",
         unpaywall_email="test@example.com",
         request_timeout_s=15.0,

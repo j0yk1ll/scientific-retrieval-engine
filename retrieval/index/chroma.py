@@ -24,6 +24,7 @@ class ChromaIndex:
 
     index_dir: Path
     collection_name: str
+    chroma_url: str
     embedding_function: object | None = None
 
     def __post_init__(self) -> None:
@@ -37,8 +38,8 @@ class ChromaIndex:
 
         Client, DefaultEmbeddingFunction, errors_mod = self._import_chromadb()
 
-        self.index_dir.mkdir(parents=True, exist_ok=True)
-        client = Client(path=str(self.index_dir))
+        # Use HTTP client for remote ChromaDB server
+        client = Client(host=self.chroma_url)
 
         try:
             client.delete_collection(self.collection_name)
@@ -65,7 +66,8 @@ class ChromaIndex:
 
         Client, DefaultEmbeddingFunction, _errors_mod = self._import_chromadb()
 
-        client = Client(path=str(self.index_dir))
+        # Use HTTP client for remote ChromaDB server
+        client = Client(host=self.chroma_url)
         collection = client.get_or_create_collection(
             name=self.collection_name,
             embedding_function=self.embedding_function or DefaultEmbeddingFunction(),
@@ -79,7 +81,9 @@ class ChromaIndex:
 
         scores: List[ChromaSearchResult] = []
         for chunk_id, distance in zip(ids, distances):
-            similarity = 1.0 - float(distance) if distance is not None else 0.0
+            # Convert distance to similarity score in (0, 1]
+            # Using 1/(1+d) ensures positive scores for any non-negative distance
+            similarity = 1.0 / (1.0 + float(distance)) if distance is not None else 0.0
             scores.append((chunk_id, similarity))
         return scores
 
@@ -93,7 +97,10 @@ class ChromaIndex:
                 "chromadb.utils.embedding_functions"
             )
             errors_mod = importlib.import_module("chromadb.errors")
-            Client = getattr(chromadb, "PersistentClient")
+            
+            # Always use HttpClient for remote ChromaDB server
+            Client = getattr(chromadb, "HttpClient")
+            
             DefaultEmbeddingFunction = getattr(
                 embedding_functions, "DefaultEmbeddingFunction"
             )

@@ -65,6 +65,7 @@ The engine is configured via environment variables (prefix `RETRIEVAL_`) or a `.
 | `RETRIEVAL_DB_DSN` | PostgreSQL connection string | `postgresql://retrieval:retrieval@localhost:5432/retrieval` |
 | `RETRIEVAL_DATA_DIR` | Directory for downloaded documents | `./data` |
 | `RETRIEVAL_INDEX_DIR` | Directory for ChromaDB index data | `./index` |
+| `RETRIEVAL_CHROMA_URL` | ChromaDB server URL (required) | `http://localhost:8000` |
 | `RETRIEVAL_GROBID_URL` | GROBID service endpoint | `http://localhost:8070` |
 | `RETRIEVAL_UNPAYWALL_EMAIL` | Contact email for Unpaywall API | `you@example.com` |
 | `RETRIEVAL_REQUEST_TIMEOUT_S` | HTTP request timeout (seconds) | `30.0` |
@@ -80,6 +81,7 @@ config = RetrievalConfig(
     db_dsn="postgresql://retrieval:retrieval@localhost:5432/retrieval",
     data_dir="./data",
     index_dir="./index",
+    chroma_url="http://localhost:8000",  # Connect to ChromaDB Docker container
     grobid_url="http://localhost:8070",
     unpaywall_email="you@example.com",
 )
@@ -109,6 +111,11 @@ The `docker-compose.yml` provides:
   - User: `retrieval`
   - Password: `retrieval`
   - Database: `retrieval`
+
+- **ChromaDB**: Vector database for semantic search
+  - Port: 8000
+  - Persistent storage in Docker volume
+  - Health check: `http://localhost:8000/api/v1/heartbeat`
 
 - **GROBID 0.8.1**: PDF to TEI XML extraction
   - Port: 8070

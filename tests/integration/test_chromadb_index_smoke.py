@@ -35,8 +35,8 @@ class _DummyCollection:
 class _DummyClient:
     collection = _DummyCollection()
 
-    def __init__(self, path):
-        self.path = path
+    def __init__(self, host=None):
+        self.host = host
         self.deleted = []
         self.collection = _DummyClient.collection
 
@@ -53,13 +53,17 @@ def test_build_and_search(monkeypatch, tmp_path):
     chromadb_mod = importlib.import_module("chromadb")
     embeddings_mod = importlib.import_module("chromadb.utils.embedding_functions")
 
-    monkeypatch.setattr(chromadb_mod, "PersistentClient", _DummyClient)
+    monkeypatch.setattr(chromadb_mod, "HttpClient", _DummyClient)
     monkeypatch.setattr(
         embeddings_mod, "DefaultEmbeddingFunction", lambda: SimpleNamespace()
     )
 
     chunks = [("chunk-0", "hello world"), ("chunk-1", "another chunk")]
-    index = ChromaIndex(index_dir=tmp_path, collection_name="demo")
+    index = ChromaIndex(
+        index_dir=tmp_path,
+        collection_name="demo",
+        chroma_url="http://localhost:8000",
+    )
 
     index_path = index.build_index(chunks)
     assert index_path == tmp_path
