@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Iterable, List, Sequence
 
 import requests
@@ -221,6 +222,82 @@ class RetrievalEngine:
 
             # Copy PDF to data directory
             pdf_disk_path = self._store_local_pdf(conn, paper_id=paper.id, source_path=pdf_file)
+
+            _tei_record, tei_xml = self._parse_and_store(
+                conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path
+            )
+
+            self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+
+            conn.commit()
+            return paper
+        except ParseError:
+            if paper is not None:
+                self._record_parse_status(conn, paper_id=paper.id, status="parse_failed")
+                conn.commit()
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def ingest_from_url(
+        self,
+        pdf_url: str,
+        *,
+        title: str | None = None,
+        abstract: str | None = None,
+        doi: str | None = None,
+        published_at: date | None = None,
+        authors: Sequence[str] | None = None,
+        source_metadata: dict | None = None,
+    ) -> Paper:
+        """Ingest a paper directly from a PDF URL.
+
+        The caller may optionally provide metadata. If ``title`` is not given, a
+        best-effort title will be derived from the URL path.
+        """
+
+        normalized_url = (pdf_url or "").strip()
+        if not normalized_url:
+            raise ValueError("A PDF URL must be provided for ingestion")
+
+        resolved_title = (title or "").strip()
+        if not resolved_title:
+            parsed = urlparse(normalized_url)
+            fallback_title = Path(parsed.path).stem
+            resolved_title = fallback_title or normalized_url
+
+        conn = get_connection(self.config.db_dsn)
+        paper: Paper | None = None
+        try:
+            paper = self._persist_paper_metadata(
+                conn,
+                title=resolved_title,
+                abstract=abstract,
+                doi=doi,
+                published_at=published_at,
+                authors=authors,
+            )
+            self._record_source(
+                conn,
+                paper_id=paper.id,
+                source_name="url",
+                source_identifier=normalized_url,
+                metadata={"url": normalized_url, **(source_metadata or {})},
+            )
+
+            candidate = FullTextCandidate(
+                source="url",
+                url=normalized_url,
+                pdf_url=normalized_url,
+                metadata=source_metadata,
+            )
+
+            _, pdf_disk_path = self._download_and_store_pdf(
+                conn, paper_id=paper.id, candidate=candidate
+            )
 
             _tei_record, tei_xml = self._parse_and_store(
                 conn, paper_id=paper.id, pdf_path_on_disk=pdf_disk_path

@@ -234,3 +234,38 @@ def get_all_chunks(conn: Connection) -> list[Chunk]:
         cur.execute(sql)
         rows = cur.fetchall()
     return [Chunk.model_validate(row) for row in rows]
+
+
+def get_all_papers(conn: Connection) -> list[Paper]:
+    """Fetch all papers ordered by creation time descending."""
+
+    sql = (
+        """
+        SELECT id, title, abstract, doi, published_at, created_at, updated_at
+        FROM papers
+        ORDER BY created_at DESC, id DESC
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    return [Paper.model_validate(row) for row in rows]
+
+
+def get_chunks_for_paper(conn: Connection, paper_id: int) -> list[Chunk]:
+    """Fetch all chunks for a paper ordered by chunk sequence."""
+
+    sql = (
+        """
+        SELECT id, paper_id, chunk_order, content, created_at
+        FROM chunks
+        WHERE paper_id = %s
+        ORDER BY chunk_order, id
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(sql, (paper_id,))
+        rows = cur.fetchall()
+    return [Chunk.model_validate(row) for row in rows]
