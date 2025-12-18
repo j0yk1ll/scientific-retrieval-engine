@@ -2,6 +2,7 @@
 
 from .base import BaseHttpClient, ClientError, NotFoundError, RateLimitedError, UpstreamError
 from .crossref import CrossrefClient, CrossrefWork
+from .grobid import GrobidClient
 from .openalex import OpenAlexClient, OpenAlexWork
 from .semanticscholar import DEFAULT_FIELDS as SEMANTICSCHOLAR_DEFAULT_FIELDS
 from .semanticscholar import SemanticScholarClient, SemanticScholarPaper
@@ -13,6 +14,7 @@ __all__ = [
     "CrossrefClient",
     "CrossrefWork",
     "FullTextCandidate",
+    "GrobidClient",
     "NotFoundError",
     "OpenAccessLocation",
     "OpenAlexClient",

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Sample Paper Title</title>
+      </titleStmt>
+    </fileDesc>
+    <profileDesc>
+      <abstract>
+        <p>This paper presents a concise abstract describing the key findings.</p>
+        <p>It also highlights the broader impact of the research.</p>
+      </abstract>
+    </profileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div>
+        <head>Introduction</head>
+        <p>The introduction provides background and motivation for the study.</p>
+        <p>This second paragraph continues the introduction and is intentionally lengthy to exercise the chunking limits set by the caller, ensuring that multi-sentence content can be split across multiple chunks when necessary.</p>
+      </div>
+      <div>
+        <head>Methods</head>
+        <p>The methods section explains the approach used in the study.</p>
+      </div>
+    </body>
+    <back>
+      <listBibl>
+        <biblStruct>
+          <analytic><title>Reference Title One</title></analytic>
+        </biblStruct>
+        <biblStruct>
+          <analytic><title>Reference Title Two</title></analytic>
+        </biblStruct>
+      </listBibl>
+    </back>
+  </text>
+</TEI>
