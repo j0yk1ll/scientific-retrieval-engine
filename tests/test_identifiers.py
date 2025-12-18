@@ -21,6 +21,10 @@ def test_normalize_doi_strips_prefixes_and_lowercases():
     assert normalize_doi("DOI:10.1000/XYZ") == "10.1000/xyz"
 
 
+def test_normalize_doi_handles_dx_prefix_and_spacing():
+    assert normalize_doi("  HTTPS://DX.DOI.ORG/10.5555/ABC  ") == "10.5555/abc"
+
+
 def test_normalize_doi_trims_whitespace_and_handles_none():
     assert normalize_doi("  https://doi.org/10.1000/12345  ") == "10.1000/12345"
     assert normalize_doi("") is None
