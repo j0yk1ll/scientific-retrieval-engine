@@ -5,6 +5,7 @@ from typing import List, Optional, Set
 
 from retrieval.identifiers import normalize_title
 from retrieval.services.crossref_service import CrossrefService
+from retrieval.services.datacite_service import DataCiteService
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +13,14 @@ logger = logging.getLogger(__name__)
 class DoiResolverService:
     """Resolve DOIs from titles using Crossref with simple heuristics."""
 
-    def __init__(self, *, crossref: Optional[CrossrefService] = None) -> None:
+    def __init__(
+        self,
+        *,
+        crossref: Optional[CrossrefService] = None,
+        datacite: Optional[DataCiteService] = None,
+    ) -> None:
         self.crossref = crossref or CrossrefService()
+        self.datacite = datacite if datacite is not None else DataCiteService()
 
     def resolve_doi_from_title(
         self, title: str, expected_authors: Optional[List[str]] = None
@@ -22,35 +29,41 @@ class DoiResolverService:
         if not normalized_target:
             return None
 
-        candidates = self.crossref.search_by_title(title, rows=5)
+        resolver_candidates = [("crossref", self.crossref.search_by_title(title, rows=5))]
+        if self.datacite:
+            resolver_candidates.append(("datacite", self.datacite.search_by_title(title, rows=5)))
         expected_author_set: Set[str] = set()
         if expected_authors:
             expected_author_set = {normalize_title(author) for author in expected_authors if author}
 
-        best_doi: Optional[str] = None
-        best_score = -1
-        for candidate in candidates:
-            if not candidate.doi or not candidate.title:
-                continue
+        for source, candidates in resolver_candidates:
+            best_doi: Optional[str] = None
+            best_score = -1
 
-            if normalize_title(candidate.title) != normalized_target:
-                continue
+            for candidate in candidates:
+                if not candidate.doi or not candidate.title:
+                    continue
 
-            overlap = 0
-            if expected_author_set:
-                overlap = sum(
-                    1 for author in candidate.authors if normalize_title(author) in expected_author_set
+                if normalize_title(candidate.title) != normalized_target:
+                    continue
+
+                overlap = 0
+                if expected_author_set:
+                    overlap = sum(
+                        1
+                        for author in candidate.authors
+                        if normalize_title(author) in expected_author_set
+                    )
+
+                score = 1 + overlap  # base score for exact title match
+                if score > best_score:
+                    best_score = score
+                    best_doi = candidate.doi
+
+            if best_doi:
+                logger.info(
+                    "Resolved DOI from title", extra={"title": title, "doi": best_doi, "source": source}
                 )
+                return best_doi
 
-            score = 1 + overlap  # base score for exact title match
-            if score > best_score:
-                best_score = score
-                best_doi = candidate.doi
-
-        if best_doi:
-            logger.info(
-                "Resolved DOI from title via Crossref",
-                extra={"title": title, "doi": best_doi, "source": "crossref"},
-            )
-
-        return best_doi
+        return None

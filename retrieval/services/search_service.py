@@ -8,6 +8,7 @@ from retrieval.models import Paper
 from retrieval.services.paper_merge_service import PaperMergeService
 
 from .crossref_service import CrossrefService
+from .datacite_service import DataCiteService
 from .doi_resolver_service import DoiResolverService
 from .openalex_service import OpenAlexService
 from .semanticscholar_service import SemanticScholarService
@@ -29,13 +30,17 @@ class PaperSearchService:
         openalex: Optional[OpenAlexService] = None,
         semanticscholar: Optional[SemanticScholarService] = None,
         crossref: Optional[CrossrefService] = None,
+        datacite: Optional[DataCiteService] = None,
         doi_resolver: Optional[DoiResolverService] = None,
         merge_service: Optional[PaperMergeService] = None,
     ) -> None:
         self.openalex = openalex or OpenAlexService()
         self.semanticscholar = semanticscholar or SemanticScholarService()
         self.crossref = crossref or CrossrefService()
-        self.doi_resolver = doi_resolver or DoiResolverService(crossref=self.crossref)
+        self.datacite = datacite or DataCiteService()
+        self.doi_resolver = doi_resolver or DoiResolverService(
+            crossref=self.crossref, datacite=self.datacite
+        )
         self.merge_service = merge_service or PaperMergeService()
 
     def search(
@@ -111,6 +116,7 @@ class PaperSearchService:
 
         for result in (
             self.crossref.get_by_doi(doi),
+            self.datacite.get_by_doi(doi),
             self.openalex.get_by_doi(doi),
             self.semanticscholar.get_by_doi(doi),
         ):
@@ -126,6 +132,10 @@ class PaperSearchService:
         if len(resolved_results) < k:
             crossref_candidates = self.crossref.search_by_title(title, rows=k)
             self._append_unique(crossref_candidates, resolved_results, seen)
+
+        if len(resolved_results) < k:
+            datacite_candidates = self.datacite.search_by_title(title, rows=k)
+            self._append_unique(datacite_candidates, resolved_results, seen)
 
         return resolved_results[:k]
 
@@ -164,6 +174,7 @@ class PaperSearchService:
     def _fetch_canonical_by_doi(self, doi: str) -> Optional[Paper]:
         for resolver in (
             self.crossref.get_by_doi,
+            self.datacite.get_by_doi,
             self.openalex.get_by_doi,
             self.semanticscholar.get_by_doi,
         ):
