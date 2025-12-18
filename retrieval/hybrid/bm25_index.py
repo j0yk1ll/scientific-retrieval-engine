@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter, defaultdict
-from typing import Callable, Dict, Iterable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Set, Tuple
 
 from .models import Chunk
 
 TokenizeFn = Callable[[str], List[str]]
 
 
-def default_tokenizer(text: str) -> List[str]:
-    return [token for token in text.lower().split() if token]
+def default_tokenizer(
+    text: str, *, stopwords: Set[str] | None = None, drop_empty: bool = True
+) -> List[str]:
+    tokens = re.split(r"[\W_]+", text.lower())
+
+    if drop_empty:
+        tokens = [token for token in tokens if token]
+
+    if stopwords:
+        tokens = [token for token in tokens if token not in stopwords]
+
+    return tokens
 
 
 class BM25Index:
@@ -20,11 +31,14 @@ class BM25Index:
         self,
         *,
         tokenizer: TokenizeFn | None = None,
+        stopwords: Set[str] | None = None,
         k1: float = 1.5,
         b: float = 0.75,
         include_query_term_frequency: bool = False,
     ) -> None:
-        self.tokenizer: TokenizeFn = tokenizer or default_tokenizer
+        self.tokenizer: TokenizeFn = tokenizer or (
+            lambda text: default_tokenizer(text, stopwords=stopwords)
+        )
         self.k1 = k1
         self.b = b
         self.include_query_term_frequency = include_query_term_frequency
