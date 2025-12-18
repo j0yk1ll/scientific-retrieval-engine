@@ -15,6 +15,7 @@ class Paper:
     year: Optional[int]
     venue: Optional[str]
     source: str
+    primary_source: Optional[str] = None
     url: Optional[str] = None
     pdf_url: Optional[str] = None
     is_oa: Optional[bool] = None

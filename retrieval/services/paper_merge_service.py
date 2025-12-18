@@ -6,48 +6,112 @@ from retrieval.identifiers import normalize_doi
 from retrieval.models import Paper, PaperEvidence, PaperProvenance
 
 
+DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
+
+
 class PaperMergeService:
     """Merge multiple records for the same paper into a single enriched record."""
 
     def __init__(self, *, source_priority: Sequence[str] | None = None) -> None:
-        self.source_priority = {source: idx for idx, source in enumerate(source_priority or [])}
+        self.source_priority_order = list(source_priority or DEFAULT_SOURCE_PRIORITY)
+        self.source_priority = {
+            source: idx for idx, source in enumerate(self.source_priority_order)
+        }
 
     def merge(self, papers: List[Paper]) -> Paper:
         if not papers:
             raise ValueError("Cannot merge an empty collection of papers")
 
-        ranked = list(enumerate(papers))
-        ranked.sort(key=lambda pair: self._rank_key(pair[1], pair[0]))
-
+        primary_index = self._primary_source_index(papers)
         provenance = self._build_provenance(papers)
 
-        doi_value, doi_evidence = self._select_field(ranked, "doi", self._is_non_empty)
-        paper_id_value, _ = self._select_field(
-            ranked, "paper_id", self._is_non_empty, preferred_value=doi_value
+        field_priorities = {
+            "doi": DEFAULT_SOURCE_PRIORITY,
+            "year": DEFAULT_SOURCE_PRIORITY,
+            "venue": DEFAULT_SOURCE_PRIORITY,
+            "url": DEFAULT_SOURCE_PRIORITY,
+            "abstract": ("openalex", "semanticscholar"),
+            "authors": (("openalex", "semanticscholar"), "crossref", "datacite"),
+        }
+
+        selections: Dict[str, Tuple[Any, PaperEvidence | None]] = {}
+
+        doi_value, doi_evidence = self._select_field(
+            papers,
+            "doi",
+            self._is_non_empty,
+            priority_order=field_priorities["doi"],
+            transform=normalize_doi,
+        )
+        selections["doi"] = (doi_value, doi_evidence)
+
+        selections["paper_id"] = self._select_field(
+            papers,
+            "paper_id",
+            self._is_non_empty,
+            preferred_value=doi_value,
+            priority_order=self.source_priority_order,
         )
 
+        selections["title"] = self._select_field(
+            papers, "title", self._is_non_empty, priority_order=self.source_priority_order
+        )
+        selections["abstract"] = self._select_field(
+            papers,
+            "abstract",
+            self._is_non_empty,
+            priority_order=field_priorities["abstract"],
+            tie_breaker=self._prefer_longer_text,
+        )
+        selections["year"] = self._select_field(
+            papers, "year", self._is_not_none, priority_order=field_priorities["year"]
+        )
+        selections["venue"] = self._select_field(
+            papers, "venue", self._is_non_empty, priority_order=field_priorities["venue"]
+        )
+        selections["url"] = self._select_field(
+            papers, "url", self._is_non_empty, priority_order=field_priorities["url"]
+        )
+        selections["pdf_url"] = self._select_field(
+            papers,
+            "pdf_url",
+            self._is_non_empty,
+            priority_order=self.source_priority_order,
+        )
+        selections["is_oa"] = self._select_field(
+            papers, "is_oa", self._is_not_none, priority_order=self.source_priority_order
+        )
+        selections["authors"] = self._select_field(
+            papers,
+            "authors",
+            self._has_authors,
+            priority_order=field_priorities["authors"],
+            tie_breaker=self._prefer_more_authors,
+        )
+
+        primary_source = doi_evidence.source if doi_evidence else papers[primary_index].source
+
         merged = Paper(
-            paper_id=paper_id_value or doi_value or papers[0].paper_id,
-            title=self._select_field(ranked, "title", self._is_non_empty)[0] or "",
+            paper_id=selections["paper_id"][0] or doi_value or papers[primary_index].paper_id,
+            title=selections["title"][0] or "",
             doi=doi_value,
-            abstract=self._select_field(ranked, "abstract", self._is_non_empty)[0],
-            year=self._select_field(ranked, "year", self._is_not_none)[0],
-            venue=self._select_field(ranked, "venue", self._is_non_empty)[0],
-            source=(doi_evidence.source if doi_evidence else ranked[0][1].source),
-            url=self._select_field(ranked, "url", self._is_non_empty)[0],
-            pdf_url=self._select_field(ranked, "pdf_url", self._is_non_empty)[0],
-            is_oa=self._select_field(ranked, "is_oa", self._is_not_none)[0],
-            authors=self._select_field(ranked, "authors", self._has_authors)[0] or [],
+            abstract=selections["abstract"][0],
+            year=selections["year"][0],
+            venue=selections["venue"][0],
+            source=primary_source,
+            primary_source=primary_source,
+            url=selections["url"][0],
+            pdf_url=selections["pdf_url"][0],
+            is_oa=selections["is_oa"][0],
+            authors=selections["authors"][0] or [],
             provenance=provenance,
         )
 
-        if doi_evidence:
-            provenance.field_sources["doi"] = doi_evidence
-
         self._record_field_sources(
-            ranked,
+            selections,
             provenance,
             {
+                "paper_id": self._is_non_empty,
                 "title": self._is_non_empty,
                 "abstract": self._is_non_empty,
                 "year": self._is_not_none,
@@ -56,6 +120,7 @@ class PaperMergeService:
                 "pdf_url": self._is_non_empty,
                 "is_oa": self._is_not_none,
                 "authors": self._has_authors,
+                "doi": self._is_non_empty,
             },
         )
 
@@ -63,8 +128,22 @@ class PaperMergeService:
 
     def _rank_key(self, paper: Paper, position: int) -> Tuple[int, int, int]:
         doi_rank = 0 if normalize_doi(paper.doi) else 1
-        source_rank = self.source_priority.get(paper.source, len(self.source_priority))
+        source_rank = self._source_rank(paper.source, self.source_priority_order)
         return (doi_rank, source_rank, position)
+
+    def _source_rank(self, source: str, priority_order: Sequence[Any]) -> int:
+        for idx, entry in enumerate(priority_order):
+            if isinstance(entry, (list, tuple, set)):
+                if source in entry:
+                    return idx
+            elif source == entry:
+                return idx
+        return len(priority_order)
+
+    def _primary_source_index(self, papers: Sequence[Paper]) -> int:
+        ranked = list(enumerate(papers))
+        ranked.sort(key=lambda pair: self._rank_key(pair[1], pair[0]))
+        return ranked[0][0]
 
     def _build_provenance(self, papers: Iterable[Paper]) -> PaperProvenance:
         sources: List[str] = []
@@ -78,34 +157,58 @@ class PaperMergeService:
 
     def _select_field(
         self,
-        ranked: List[Tuple[int, Paper]],
+        papers: Sequence[Paper],
         field_name: str,
         predicate,
         *,
         preferred_value: Any | None = None,
+        priority_order: Sequence[str] | None = None,
+        tie_breaker=None,
+        transform=None,
     ) -> Tuple[Any, PaperEvidence | None]:
-        if preferred_value and predicate(preferred_value):
-            for _, paper in ranked:
-                if getattr(paper, field_name) == preferred_value:
-                    return preferred_value, PaperEvidence(source=paper.source, value=preferred_value)
+        selected_value: Any | None = None
+        selected_evidence: PaperEvidence | None = None
+        selected_rank: int | None = None
+        selected_position: int | None = None
 
-        for _, paper in ranked:
-            value = getattr(paper, field_name)
-            if predicate(value):
+        priorities = priority_order or self.source_priority_order
+
+        for position, paper in enumerate(papers):
+            raw_value = getattr(paper, field_name)
+            value = transform(raw_value) if transform else raw_value
+
+            if preferred_value is not None and value == preferred_value and predicate(value):
                 return value, PaperEvidence(source=paper.source, value=value)
-        return None, None
+
+            if not predicate(value):
+                continue
+
+            rank = self._source_rank(paper.source, priorities)
+            if selected_evidence is None or rank < selected_rank:  # type: ignore[operator]
+                selected_value = value
+                selected_evidence = PaperEvidence(source=paper.source, value=value)
+                selected_rank = rank
+                selected_position = position
+                continue
+
+            if rank == selected_rank:
+                if tie_breaker and tie_breaker(selected_value, value):
+                    selected_value = value
+                    selected_evidence = PaperEvidence(source=paper.source, value=value)
+                    selected_position = position
+                elif selected_position is None or position < selected_position:
+                    selected_position = selected_position or position
+        return selected_value, selected_evidence
 
     def _record_field_sources(
         self,
-        ranked: List[Tuple[int, Paper]],
+        selections: Dict[str, Tuple[Any, PaperEvidence | None]],
         provenance: PaperProvenance,
         field_predicates: Dict[str, Any],
     ) -> None:
         for field_name, predicate in field_predicates.items():
-            if field_name in provenance.field_sources:
-                continue
-            _, evidence = self._select_field(ranked, field_name, predicate)
-            if evidence:
+            value, evidence = selections.get(field_name, (None, None))
+            if evidence and predicate(value):
                 provenance.field_sources[field_name] = evidence
 
     @staticmethod
@@ -123,6 +226,20 @@ class PaperMergeService:
     @staticmethod
     def _has_authors(value: Any) -> bool:
         return bool(value)
+
+    @staticmethod
+    def _prefer_longer_text(current: Any, candidate: Any) -> bool:
+        if current is None:
+            return True
+        if candidate is None:
+            return False
+        return len(str(candidate)) > len(str(current))
+
+    @staticmethod
+    def _prefer_more_authors(current: Any, candidate: Any) -> bool:
+        current_len = len(current or [])
+        candidate_len = len(candidate or [])
+        return candidate_len > current_len
 
 
 def merge_papers(papers: List[Paper]) -> Paper:
