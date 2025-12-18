@@ -16,6 +16,8 @@ class Paper:
     venue: Optional[str]
     source: str
     url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    is_oa: Optional[bool] = None
     authors: List[str] = field(default_factory=list)
 
 

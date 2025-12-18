@@ -1,0 +1,67 @@
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from retrieval.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
+from retrieval.models import Paper
+from retrieval.services.paper_enrichment_service import PaperEnrichmentService
+
+
+class FakeUnpaywallService:
+    def __init__(self, record: UnpaywallRecord | None) -> None:
+        self.record = record
+        self.requested_doi: str | None = None
+
+    def get_record(self, doi: str) -> UnpaywallRecord | None:
+        self.requested_doi = doi
+        return self.record
+
+
+def test_enrich_adds_pdf_and_flags_open_access() -> None:
+    record = UnpaywallRecord(
+        doi="10.1234/example",
+        title="Example",
+        best_oa_location=OpenAccessLocation(
+            url="https://example.org/landing",
+            url_for_pdf="https://example.org/paper.pdf",
+            version="publishedVersion",
+            license="cc-by",
+            host_type="publisher",
+            is_best=True,
+        ),
+        oa_locations=[],
+    )
+    enrichment = PaperEnrichmentService(unpaywall=FakeUnpaywallService(record))
+    paper = Paper(
+        paper_id="1",
+        title="Example",
+        doi="10.1234/example",
+        abstract=None,
+        year=None,
+        venue=None,
+        source="test",
+    )
+
+    enriched = enrichment.enrich(paper)
+
+    assert enriched.pdf_url == "https://example.org/paper.pdf"
+    assert enriched.is_oa is True
+
+
+def test_enrich_is_noop_without_doi() -> None:
+    enrichment = PaperEnrichmentService(unpaywall=FakeUnpaywallService(None))
+    paper = Paper(
+        paper_id="1",
+        title="No DOI",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="test",
+    )
+
+    enriched = enrichment.enrich(paper)
+
+    assert enriched.pdf_url is None
+    assert enriched.is_oa is None
