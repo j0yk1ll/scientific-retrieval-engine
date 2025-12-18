@@ -25,13 +25,20 @@ class GrobidDocument:
 
 @dataclass
 class GrobidChunk:
+    """A single chunk produced from the linear chunk stream of a TEI document.
+
+    Offsets are measured in the concatenated chunk stream created by
+    :meth:`GrobidChunker.chunk`, *not* in the original TEI document.
+    """
+
     chunk_id: str
     paper_id: str
     section: str
     content: str
-    start_char: int
-    end_char: int
+    stream_start_char: int
+    stream_end_char: int
     token_count: int
+    section_index: int
 
 
 class GrobidChunker:
@@ -49,7 +56,12 @@ class GrobidChunker:
         self.document = self._parse_document()
 
     def chunk(self, *, max_tokens: int = 400, max_chars: int = 2000) -> List[GrobidChunk]:
-        """Chunk the TEI XML into bounded pieces while preserving section context."""
+        """Chunk the TEI XML into bounded pieces while preserving section context.
+
+        Character offsets are measured against the concatenated chunk stream produced
+        by this method, providing a stable ordering without implying absolute TEI
+        character positions.
+        """
 
         chunks: List[GrobidChunk] = []
         running_offset = 0
@@ -57,7 +69,7 @@ class GrobidChunker:
         header_token_count = 0
 
         sections = self._ordered_sections()
-        for section in sections:
+        for section_index, section in enumerate(sections):
             paragraph_queue = list(self._split_long_paragraphs(section.paragraphs, max_chars))
             while paragraph_queue:
                 current_parts: List[str] = []
@@ -99,9 +111,10 @@ class GrobidChunker:
                     paper_id=self.paper_id,
                     section=section.title,
                     content=chunk_text,
-                    start_char=running_offset,
-                    end_char=running_offset + len(chunk_text),
+                    stream_start_char=running_offset,
+                    stream_end_char=running_offset + len(chunk_text),
                     token_count=chunk_tokens,
+                    section_index=section_index,
                 )
                 chunks.append(chunk)
                 running_offset += len(chunk_text)
