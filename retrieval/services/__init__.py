@@ -1,6 +1,7 @@
 """Service layer for the retrieval package."""
 
 from .crossref_service import CrossrefService
+from .datacite_service import DataCiteService
 from .doi_resolver_service import DoiResolverService
 from .openalex_service import OpenAlexService
 from .opencitations_service import OpenCitationsService
@@ -12,6 +13,7 @@ from .unpaywall_service import UnpaywallService
 
 __all__ = [
     "CrossrefService",
+    "DataCiteService",
     "DoiResolverService",
     "OpenAlexService",
     "OpenCitationsService",

@@ -5,11 +5,13 @@ from typing import List, Optional
 import requests
 
 from .clients.crossref import CrossrefClient
+from .clients.datacite import DataCiteClient
 from .clients.openalex import OpenAlexClient
 from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .clients.semanticscholar import SemanticScholarClient
 from .models import Citation, Paper
 from .services.crossref_service import CrossrefService
+from .services.datacite_service import DataCiteService
 from .services.doi_resolver_service import DoiResolverService
 from .services.opencitations_service import OpenCitationsService
 from .services.paper_enrichment_service import PaperEnrichmentService
@@ -60,7 +62,15 @@ class RetrievalClient:
             base_url=self.settings.crossref_base_url,
         )
         crossref_service = CrossrefService(crossref_client)
-        doi_resolver = DoiResolverService(crossref=crossref_service)
+
+        datacite_client = DataCiteClient(
+            session=self.session,
+            timeout=self.settings.timeout,
+            base_url=self.settings.datacite_base_url,
+        )
+        datacite_service = DataCiteService(datacite_client)
+
+        doi_resolver = DoiResolverService(crossref=crossref_service, datacite=datacite_service)
 
         semanticscholar_client = SemanticScholarClient(
             session=self.session,
@@ -70,13 +80,14 @@ class RetrievalClient:
         semanticscholar_service = SemanticScholarService(semanticscholar_client)
 
         merge_service = PaperMergeService(
-            source_priority=["crossref", "openalex", "semanticscholar"]
+            source_priority=["crossref", "datacite", "openalex", "semanticscholar"]
         )
 
         self._search_service = search_service or PaperSearchService(
             openalex=openalex_service,
             semanticscholar=semanticscholar_service,
             crossref=crossref_service,
+            datacite=datacite_service,
             doi_resolver=doi_resolver,
             merge_service=merge_service,
         )
