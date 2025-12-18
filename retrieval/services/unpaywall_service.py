@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from retrieval.clients.base import ClientError
 from retrieval.clients.unpaywall import UnpaywallClient, UnpaywallRecord
 
 
@@ -16,5 +17,5 @@ class UnpaywallService:
             return None
         try:
             return self.client.get_record(doi)
-        except Exception:
+        except ClientError:
             return None

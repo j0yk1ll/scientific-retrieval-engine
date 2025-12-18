@@ -40,6 +40,8 @@ class OpenAlexService:
             return None
         openalex_id = f"https://doi.org/{normalized_doi}"
         work = self.client.get_work(openalex_id)
+        if work is None:
+            return None
         return self._to_paper(work)
 
     def get_by_title(self, title: str, *, per_page: int = 5) -> List[Paper]:
