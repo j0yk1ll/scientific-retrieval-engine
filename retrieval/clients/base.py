@@ -137,10 +137,11 @@ class BaseHttpClient:
         *,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> requests.Response:
         url = f"{self.base_url}{path}"
         try:
-            response = self._send(method, url, params=params, headers=headers)
+            response = self._send(method, url, params=params, headers=headers, **kwargs)
         except RetryableResponseError as exc:
             response = exc.response
         except requests.RequestException as exc:  # pragma: no cover - network dependent
