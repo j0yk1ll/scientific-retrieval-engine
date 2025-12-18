@@ -7,8 +7,9 @@ import requests
 from .clients.crossref import CrossrefClient
 from .clients.datacite import DataCiteClient
 from .clients.openalex import OpenAlexClient
-from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
+from .clients.opencitations import OpenCitationsClient
 from .clients.semanticscholar import SemanticScholarClient
+from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .models import Citation, Paper
 from .services.crossref_service import CrossrefService
 from .services.datacite_service import DataCiteService
@@ -92,11 +93,15 @@ class RetrievalClient:
             merge_service=merge_service,
         )
 
-        self._opencitations_service = opencitations_service or OpenCitationsService(
-            session=self.session,
-            timeout=self.settings.timeout,
-            base_url=self.settings.opencitations_base_url,
-        )
+        if opencitations_service is not None:
+            self._opencitations_service = opencitations_service
+        else:
+            opencitations_client = OpenCitationsClient(
+                session=self.session,
+                timeout=self.settings.timeout,
+                base_url=self.settings.opencitations_base_url,
+            )
+            self._opencitations_service = OpenCitationsService(opencitations_client)
 
         if unpaywall_client is not None:
             self._unpaywall_client = unpaywall_client
