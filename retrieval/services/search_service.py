@@ -47,7 +47,12 @@ class PaperSearchService:
         max_year: Optional[int] = None,
     ) -> List[Paper]:
         merged, _ = self.search_with_raw(
-            query, k=k, min_year=min_year, max_year=max_year, include_raw=False
+            query,
+            k=k,
+            min_year=min_year,
+            max_year=max_year,
+            include_raw=False,
+            openalex_extra_pages=0,
         )
         return merged
 
@@ -59,6 +64,8 @@ class PaperSearchService:
         min_year: Optional[int] = None,
         max_year: Optional[int] = None,
         include_raw: bool = True,
+        use_openalex_cursor: bool = False,
+        openalex_extra_pages: int = 0,
     ) -> Tuple[List[Paper], List[Paper]]:
         if not query:
             return [], []
@@ -71,8 +78,12 @@ class PaperSearchService:
         )
         self._append_to_groups(openalex_results, grouped, order)
 
-        if cursor:
-            more_results, _ = self.openalex.search(
+        pages_to_fetch = openalex_extra_pages
+        if use_openalex_cursor and pages_to_fetch == 0:
+            pages_to_fetch = 1
+
+        while cursor and pages_to_fetch > 0:
+            more_results, cursor = self.openalex.search(
                 query,
                 per_page=k,
                 min_year=min_year,
@@ -80,6 +91,7 @@ class PaperSearchService:
                 cursor=cursor,
             )
             self._append_to_groups(more_results, grouped, order)
+            pages_to_fetch -= 1
 
         semantic_results = self.semanticscholar.search(
             query, limit=k, min_year=min_year, max_year=max_year
