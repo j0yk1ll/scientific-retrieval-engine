@@ -4,6 +4,7 @@ import logging
 from typing import List, Optional, Set
 
 from retrieval.identifiers import normalize_title
+from retrieval.matching import jaccard, title_tokens
 from retrieval.services.crossref_service import CrossrefService
 from retrieval.services.datacite_service import DataCiteService
 
@@ -18,14 +19,17 @@ class DoiResolverService:
         *,
         crossref: Optional[CrossrefService] = None,
         datacite: Optional[DataCiteService] = None,
+        min_similarity: float = 0.9,
     ) -> None:
         self.crossref = crossref or CrossrefService()
         self.datacite = datacite if datacite is not None else DataCiteService()
+        self.min_similarity = min_similarity
 
     def resolve_doi_from_title(
         self, title: str, expected_authors: Optional[List[str]] = None
     ) -> Optional[str]:
         normalized_target = normalize_title(title)
+        target_tokens = title_tokens(title)
         if not normalized_target:
             return None
 
@@ -38,31 +42,52 @@ class DoiResolverService:
 
         for source, candidates in resolver_candidates:
             best_doi: Optional[str] = None
-            best_score = -1
+            best_score = -1.0
+            best_similarity = 0.0
+            best_author_overlap = 0
 
             for candidate in candidates:
                 if not candidate.doi or not candidate.title:
                     continue
 
-                if normalize_title(candidate.title) != normalized_target:
+                normalized_candidate = normalize_title(candidate.title)
+                if not normalized_candidate:
                     continue
 
-                overlap = 0
+                candidate_tokens = title_tokens(candidate.title)
+                similarity = (
+                    1.0 if normalized_candidate == normalized_target else jaccard(target_tokens, candidate_tokens)
+                )
+
+                if similarity < self.min_similarity:
+                    continue
+
+                author_overlap = 0
                 if expected_author_set:
-                    overlap = sum(
-                        1
-                        for author in candidate.authors
-                        if normalize_title(author) in expected_author_set
+                    author_overlap = sum(
+                        1 for author in candidate.authors if normalize_title(author) in expected_author_set
                     )
 
-                score = 1 + overlap  # base score for exact title match
+                    if similarity < 1.0 and author_overlap == 0:
+                        continue
+
+                score = similarity + author_overlap
                 if score > best_score:
                     best_score = score
                     best_doi = candidate.doi
+                    best_similarity = similarity
+                    best_author_overlap = author_overlap
 
             if best_doi:
                 logger.info(
-                    "Resolved DOI from title", extra={"title": title, "doi": best_doi, "source": source}
+                    "Resolved DOI from title",
+                    extra={
+                        "title": title,
+                        "doi": best_doi,
+                        "source": source,
+                        "similarity": best_similarity,
+                        "author_overlap": best_author_overlap,
+                    },
                 )
                 return best_doi
 

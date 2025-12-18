@@ -75,3 +75,57 @@ def test_resolve_falls_back_to_datacite_when_crossref_missing():
     resolved = resolver.resolve_doi_from_title(title, expected_authors=["Dana Scully"])
 
     assert resolved == "10.9999/datacite"
+
+
+def test_resolve_accepts_near_exact_match_with_author_overlap():
+    title = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau"
+    near_match_title = (
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma"
+    )
+    papers = [
+        Paper(
+            paper_id="1",
+            title=near_match_title,
+            doi="10.3333/near-match",
+            abstract=None,
+            year=2022,
+            venue=None,
+            source="crossref",
+            authors=["Alice Smith"],
+        )
+    ]
+
+    resolver = DoiResolverService(
+        crossref=StubCrossrefService(papers), datacite=StubDataCiteService([])
+    )
+
+    resolved = resolver.resolve_doi_from_title(title, expected_authors=["Alice Smith"])
+
+    assert resolved == "10.3333/near-match"
+
+
+def test_resolve_rejects_near_match_without_author_overlap_when_expected():
+    title = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau"
+    near_match_title = (
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma"
+    )
+    papers = [
+        Paper(
+            paper_id="1",
+            title=near_match_title,
+            doi="10.4444/wrong-author",
+            abstract=None,
+            year=2022,
+            venue=None,
+            source="crossref",
+            authors=["Bob Jones"],
+        )
+    ]
+
+    resolver = DoiResolverService(
+        crossref=StubCrossrefService(papers), datacite=StubDataCiteService([])
+    )
+
+    resolved = resolver.resolve_doi_from_title(title, expected_authors=["Alice Smith"])
+
+    assert resolved is None
