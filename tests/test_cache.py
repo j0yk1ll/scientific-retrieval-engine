@@ -1,0 +1,133 @@
+import json
+import os
+import re
+from pathlib import Path
+
+import pytest
+
+from retrieval.cache import CACHE_VERSION, CachedPaperPipeline, DoiFileCache
+from retrieval.chunking.grobid_chunker import GrobidChunker
+from retrieval.models import Paper
+
+
+class DummyEmbedder:
+    model_name = "dummy-model"
+    normalized = True
+
+    def __init__(self, dim: int = 4) -> None:
+        self.dim = dim
+
+    def embed(self, texts):
+        return [[float(i)] * self.dim for i, _ in enumerate(texts)]
+
+
+class DummyGrobidClient:
+    def process_fulltext(self, pdf, consolidate_header=True):
+        return "<xml/>"
+
+
+class DummyMergeService:
+    def merge(self, candidates):
+        return candidates[0]
+
+
+class DummySearchService:
+    def __init__(self) -> None:
+        self.merge_service = DummyMergeService()
+
+    def search_by_doi(self, doi):
+        return [Paper(paper_id="pid", title="t", doi=doi)]
+
+
+@pytest.fixture
+def cache_dir(tmp_path: Path) -> Path:
+    return tmp_path / "cache"
+
+
+def test_cache_write_is_atomic_via_replace(monkeypatch, cache_dir: Path):
+    cache = DoiFileCache(cache_dir)
+    metadata_path = cache._metadata_path("10.0000/abc")
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.write_text("old")
+
+    calls = []
+
+    def crash_replace(src, dst):
+        calls.append((src, dst))
+        raise RuntimeError("crash")
+
+    monkeypatch.setattr(os, "replace", crash_replace)
+
+    with pytest.raises(RuntimeError):
+        cache.store_metadata(
+            "10.0000/abc",
+            Paper(
+                paper_id="pid",
+                title="t",
+                doi="d",
+                abstract=None,
+                year=None,
+                venue=None,
+                source="test",
+            ),
+        )
+
+    assert metadata_path.read_text() == "old"
+    assert calls, "os.replace should be used for atomic writes"
+
+
+def test_cache_key_sanitization_rejects_or_normalizes_unsafe_chars(cache_dir: Path):
+    cache = DoiFileCache(cache_dir)
+    path = cache._doi_dir("10.1234/ABC DEF?%$")
+    assert path.parent == cache_dir
+    assert re.fullmatch(r"[a-z0-9._-]+", path.name)
+
+
+def test_cache_version_mismatch_invalidates_or_ignores_old_entries(cache_dir: Path):
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    version_file = cache_dir / "cache_version"
+    version_file.write_text("0")
+    old_metadata = cache_dir / "old.json"
+    old_metadata.write_text("legacy")
+
+    cache = DoiFileCache(cache_dir)
+    metadata = cache.load_metadata("10.0000/abc")
+
+    assert metadata is None
+    assert version_file.read_text() == CACHE_VERSION
+    assert not old_metadata.exists()
+
+
+def test_embedding_metadata_is_saved(cache_dir: Path):
+    cache = DoiFileCache(cache_dir)
+    embedder = DummyEmbedder(dim=3)
+    pipeline = CachedPaperPipeline(
+        cache=cache,
+        search_service=DummySearchService(),
+        grobid_client=DummyGrobidClient(),
+        embedder=embedder,
+    )
+
+    cache.store_metadata(
+        "10.0000/abc",
+        Paper(
+            paper_id="pid",
+            title="t",
+            doi="10.0000/abc",
+            abstract=None,
+            year=None,
+            venue=None,
+            source="test",
+        ),
+    )
+    cache.store_tei("10.0000/abc", "tei")
+    cache.store_chunks("10.0000/abc", [])
+
+    artifacts = pipeline.ingest("10.0000/abc", pdf="pdf")
+    embeddings_path = cache._embeddings_path("10.0000/abc")
+    payload = json.loads(embeddings_path.read_text())
+
+    assert payload["metadata"]["model"] == embedder.model_name
+    assert payload["metadata"]["chunker_version"] == GrobidChunker.VERSION
+    assert len(payload["embeddings"]) == len(artifacts.embeddings)
+

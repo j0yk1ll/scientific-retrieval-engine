@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import re
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
@@ -17,6 +21,22 @@ if TYPE_CHECKING:  # pragma: no cover
     from retrieval.services.paper_enrichment_service import PaperEnrichmentService
     from retrieval.services.search_service import PaperSearchService
 
+CACHE_VERSION = "1"
+
+
+def _atomic_write_text(path: Path, data: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", delete=False, dir=path.parent) as tmp:
+        tmp.write(data)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp_path = Path(tmp.name)
+    try:
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
 
 @dataclass
 class CachedPaperArtifacts:
@@ -32,13 +52,21 @@ class DoiFileCache:
     """Lightweight filesystem cache scoped by DOI."""
 
     def __init__(
-        self, base_dir: Path | str = ".cache", *, chunk_encoding_name: str | None = None
+        self,
+        base_dir: Path | str = ".cache",
+        *,
+        chunk_encoding_name: str | None = None,
+        chunker_version: str | None = None,
     ) -> None:
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_cache_version()
         self.chunk_encoding_name = chunk_encoding_name
+        self.chunker_version = chunker_version or getattr(GrobidChunker, "VERSION", "unknown")
 
     def load_metadata(self, doi: str) -> Optional[Paper]:
+        if not self._version_matches:
+            return None
         path = self._metadata_path(doi)
         if not path.exists():
             return None
@@ -50,13 +78,14 @@ class DoiFileCache:
 
     def store_metadata(self, doi: str, paper: Paper) -> None:
         path = self._metadata_path(doi)
-        path.parent.mkdir(parents=True, exist_ok=True)
         payload = asdict(paper)
         if paper.provenance:
             payload["provenance"] = self._serialize_provenance(paper.provenance)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        _atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True))
 
     def load_tei(self, doi: str) -> Optional[str]:
+        if not self._version_matches:
+            return None
         path = self._tei_path(doi)
         if not path.exists():
             return None
@@ -64,10 +93,11 @@ class DoiFileCache:
 
     def store_tei(self, doi: str, tei_xml: str) -> None:
         path = self._tei_path(doi)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(tei_xml)
+        _atomic_write_text(path, tei_xml)
 
     def load_chunks(self, doi: str) -> Optional[List[Chunk]]:
+        if not self._version_matches:
+            return None
         path = self._chunks_path(doi)
         if not path.exists():
             return None
@@ -76,20 +106,30 @@ class DoiFileCache:
 
     def store_chunks(self, doi: str, chunks: Iterable[Chunk]) -> None:
         path = self._chunks_path(doi)
-        path.parent.mkdir(parents=True, exist_ok=True)
         serialized = [asdict(chunk) for chunk in chunks]
-        path.write_text(json.dumps(serialized, indent=2, sort_keys=True))
+        _atomic_write_text(path, json.dumps(serialized, indent=2, sort_keys=True))
 
     def load_embeddings(self, doi: str) -> Optional[List[Sequence[float]]]:
+        if not self._version_matches:
+            return None
         path = self._embeddings_path(doi)
         if not path.exists():
             return None
-        return json.loads(path.read_text())
+        payload = json.loads(path.read_text())
+        if isinstance(payload, dict) and "embeddings" in payload:
+            return payload["embeddings"]
+        return payload
 
-    def store_embeddings(self, doi: str, embeddings: Iterable[Sequence[float]]) -> None:
+    def store_embeddings(
+        self,
+        doi: str,
+        embeddings: Iterable[Sequence[float]],
+        *,
+        embedding_metadata: Dict[str, object],
+    ) -> None:
         path = self._embeddings_path(doi)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(list(embeddings), indent=2))
+        payload = {"metadata": embedding_metadata, "embeddings": list(embeddings)}
+        _atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True))
 
     def build_chunks(self, *, doi: str, tei_xml: str, paper_id: str, title: Optional[str]) -> List[Chunk]:
         chunker = GrobidChunker(
@@ -100,8 +140,12 @@ class DoiFileCache:
 
     def _doi_dir(self, doi: str) -> Path:
         normalized = normalize_doi(doi) or doi.strip().lower()
-        safe = normalized.replace("/", "_")
-        return self.base_dir / safe
+        safe = re.sub(r"[^a-z0-9._-]", "-", normalized.lower())
+        safe = re.sub(r"-+", "-", safe).strip("-_.")
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        slug = f"{safe[:64]}-{digest[:12]}" if safe else digest[:12]
+        slug = re.sub(r"[^a-z0-9._-]", "-", slug)
+        return self.base_dir / slug
 
     def _metadata_path(self, doi: str) -> Path:
         return self._doi_dir(doi) / "metadata.json"
@@ -114,6 +158,33 @@ class DoiFileCache:
 
     def _embeddings_path(self, doi: str) -> Path:
         return self._doi_dir(doi) / "embeddings.json"
+
+    def _ensure_cache_version(self) -> None:
+        version_file = self.base_dir / "cache_version"
+        if not version_file.exists():
+            _atomic_write_text(version_file, CACHE_VERSION)
+            self._version_matches = True
+            return
+
+        current_version = version_file.read_text().strip()
+        if current_version == CACHE_VERSION:
+            self._version_matches = True
+            return
+
+        for child in self.base_dir.iterdir():
+            if child == version_file:
+                continue
+            if child.is_dir():
+                for sub in sorted(child.rglob("*"), reverse=True):
+                    if sub.is_file():
+                        sub.unlink()
+                    elif sub.is_dir():
+                        sub.rmdir()
+                child.rmdir()
+            else:
+                child.unlink()
+        _atomic_write_text(version_file, CACHE_VERSION)
+        self._version_matches = True
 
     def _deserialize_provenance(self, data: Optional[Dict[str, object]]) -> Optional[PaperProvenance]:
         if not data:
@@ -198,7 +269,8 @@ class CachedPaperPipeline:
         embeddings = self.cache.load_embeddings(doi)
         if embeddings is None:
             embeddings = list(self.embedder.embed([chunk.text for chunk in chunks]))
-            self.cache.store_embeddings(doi, embeddings)
+            metadata = self._build_embedding_metadata(embeddings)
+            self.cache.store_embeddings(doi, embeddings, embedding_metadata=metadata)
 
         return CachedPaperArtifacts(
             paper=metadata, tei_xml=tei_xml, chunks=chunks, embeddings=embeddings
@@ -208,6 +280,19 @@ class CachedPaperPipeline:
         if self.retrieval_client:
             return self.retrieval_client.search_paper_by_doi(doi)
         return self.search_service.search_by_doi(doi)
+
+    def _build_embedding_metadata(self, embeddings: List[Sequence[float]]) -> Dict[str, object]:
+        dimension = len(embeddings[0]) if embeddings else 0
+        model_name = getattr(self.embedder, "model_name", None) or self.embedder.__class__.__name__
+        normalized = getattr(self.embedder, "normalized", None)
+        if normalized is None:
+            normalized = getattr(self.embedder, "normalize", None)
+        return {
+            "model": model_name,
+            "dimension": dimension,
+            "normalized": bool(normalized) if normalized is not None else False,
+            "chunker_version": self.cache.chunker_version,
+        }
 
 
 __all__ = ["CachedPaperArtifacts", "CachedPaperPipeline", "DoiFileCache"]
