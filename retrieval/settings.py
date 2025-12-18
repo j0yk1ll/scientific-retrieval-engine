@@ -17,6 +17,8 @@ class RetrievalSettings:
     enable_unpaywall: bool = False
     unpaywall_email: Optional[str] = None
     openalex_base_url: Optional[str] = None
+    crossref_base_url: Optional[str] = None
+    datacite_base_url: Optional[str] = None
     semanticscholar_base_url: Optional[str] = None
     opencitations_base_url: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
