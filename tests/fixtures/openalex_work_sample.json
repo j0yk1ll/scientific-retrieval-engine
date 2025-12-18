@@ -1,0 +1,15 @@
+{
+  "id": "https://openalex.org/W1234567890",
+  "doi": "https://doi.org/10.1234/example",
+  "display_name": "A Demonstration of Cached Retrieval",
+  "publication_year": 2023,
+  "host_venue": {
+    "display_name": "Journal of Examples"
+  },
+  "abstract": "This abstract highlights how caching accelerates local workflows.",
+  "authorships": [
+    {"author": {"display_name": "Ada Lovelace"}},
+    {"author": {"display_name": "Grace Hopper"}}
+  ],
+  "referenced_works": []
+}
