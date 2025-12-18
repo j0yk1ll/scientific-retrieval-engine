@@ -1,6 +1,15 @@
 """HTTP clients used by the retrieval service layer."""
 
-from .base import BaseHttpClient, ClientError, NotFoundError, RateLimitedError, UpstreamError
+from .base import (
+    BaseHttpClient,
+    ClientError,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitedError,
+    RequestRejectedError,
+    UnauthorizedError,
+    UpstreamError,
+)
 from .crossref import CrossrefClient, CrossrefWork
 from .datacite import DataCiteClient, DataCiteWork
 from .grobid import GrobidClient
@@ -25,10 +34,13 @@ __all__ = [
     "OpenAlexWork",
     "OpenCitationsClient",
     "RateLimitedError",
+    "RequestRejectedError",
     "SEMANTICSCHOLAR_DEFAULT_FIELDS",
     "SemanticScholarClient",
     "SemanticScholarPaper",
+    "UnauthorizedError",
     "UnpaywallClient",
     "UnpaywallRecord",
+    "ForbiddenError",
     "UpstreamError",
 ]

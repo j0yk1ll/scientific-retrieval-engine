@@ -35,6 +35,23 @@ class RateLimitedError(ClientError):
         self.retry_after = retry_after
 
 
+class RequestRejectedError(ClientError):
+    """Raised when the upstream rejects the request (HTTP 4xx, excluding 404/429)."""
+
+    def __init__(self, status: int, message: str, body_excerpt: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.body_excerpt = body_excerpt
+
+
+class UnauthorizedError(RequestRejectedError):
+    """Raised for HTTP 401 responses when authentication is required or has failed."""
+
+
+class ForbiddenError(RequestRejectedError):
+    """Raised for HTTP 403 responses when access is forbidden."""
+
+
 class UpstreamError(ClientError):
     """Raised when the upstream service fails after retries."""
 
@@ -84,6 +101,8 @@ def _parse_retry_after(value: Optional[str]) -> Optional[float]:
 
 _fallback_wait = wait_exponential(multiplier=0.5, min=0.5, max=8)
 
+_BODY_EXCERPT_LIMIT = 200
+
 
 def _retry_wait(retry_state: RetryCallState) -> float:
     """Custom wait strategy honoring Retry-After headers when available."""
@@ -98,6 +117,23 @@ def _retry_wait(retry_state: RetryCallState) -> float:
         return wait_seconds
 
     return _fallback_wait(retry_state)
+
+
+def _sanitize_excerpt(text: str, max_length: int) -> str:
+    cleaned = " ".join(text.split())
+    return cleaned[:max_length]
+
+
+def _get_body_excerpt(response: requests.Response) -> Optional[str]:
+    try:
+        body_text = response.text
+    except Exception:
+        return None
+
+    if not body_text:
+        return None
+
+    return _sanitize_excerpt(body_text, _BODY_EXCERPT_LIMIT)
 
 
 class BaseHttpClient:
@@ -157,8 +193,20 @@ class BaseHttpClient:
             retry_after = _parse_retry_after(response.headers.get("Retry-After"))
             raise RateLimitedError("Rate limit exceeded", retry_after=retry_after)
         if 500 <= status < 600:
-            raise UpstreamError(f"Upstream service error ({status})")
+            excerpt = _get_body_excerpt(response)
+            message = "Upstream service error"
+            if excerpt:
+                message = f"{message}: {excerpt}"
+            raise UpstreamError(f"{message} ({status})")
         if 400 <= status < 500:
-            raise UpstreamError(f"Client request rejected ({status})")
+            excerpt = _get_body_excerpt(response)
+            message = "Client request rejected"
+            if excerpt:
+                message = f"{message}: {excerpt}"
+            if status == 401:
+                raise UnauthorizedError(status, f"Unauthorized ({status})", body_excerpt=excerpt)
+            if status == 403:
+                raise ForbiddenError(status, f"Forbidden ({status})", body_excerpt=excerpt)
+            raise RequestRejectedError(status, f"{message} ({status})", body_excerpt=excerpt)
         return response
 
