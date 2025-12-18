@@ -19,7 +19,12 @@ from .session import SessionIndex
 
 
 class RetrievalClient:
-    """Facade around search and citation workflows with configurable settings."""
+    """Facade around search and citation workflows with configurable settings.
+
+    The public contract is intentionally narrow: inputs are limited to DOIs and
+    titles. Arbitrary URL lookups, direct server scraping, and preprint-server
+    (e.g., arXiv) requests are not part of the supported pipeline.
+    """
 
     def __init__(
         self,
@@ -89,14 +94,21 @@ class RetrievalClient:
     def search_papers(
         self, query: str, k: int = 5, min_year: Optional[int] = None, max_year: Optional[int] = None
     ) -> List[Paper]:
-        """Search OpenAlex and Semantic Scholar for papers matching ``query``."""
+        """Search OpenAlex and Semantic Scholar for papers matching a title-like ``query``.
+
+        Queries are treated as bibliographic text; URL-based lookups are out of scope.
+        """
 
         papers = self._search_service.search(query, k=k, min_year=min_year, max_year=max_year)
         self.session_index.add_papers(papers)
         return papers
 
     def search_paper_by_doi(self, doi: str) -> List[Paper]:
-        """Search for a paper by DOI across configured services."""
+        """Search for a paper by DOI across configured services.
+
+        The input should be a DOI string (a ``https://doi.org/`` prefix is optional);
+        arbitrary URLs are not resolved.
+        """
 
         papers = self._search_service.search_by_doi(doi)
         if self._paper_enrichment_service:
@@ -105,7 +117,10 @@ class RetrievalClient:
         return papers
 
     def search_paper_by_title(self, title: str) -> List[Paper]:
-        """Search for a paper by title."""
+        """Search for a paper by title.
+
+        Preprint lookups and URL parsing are deliberately excluded.
+        """
 
         papers = self._search_service.search_by_title(title)
         self.session_index.add_papers(papers)

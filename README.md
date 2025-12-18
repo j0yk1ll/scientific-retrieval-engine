@@ -27,6 +27,12 @@ The package exposes a simplified session-scoped API:
 
 Each function uses dedicated service clients (OpenAlex, Semantic Scholar, Unpaywall, and OpenCitations) and stores results only for the current session.
 
+### Supported inputs and scope
+
+- Inputs must be either a DOI or a title. URL-based lookups and parsing are intentionally unsupported.
+- The pipeline queries curated metadata services only; it does **not** scrape source servers directly.
+- Preprint servers (e.g., arXiv) are out of scope and are not consulted by any workflow.
+
 ## Requirements
 
 - Python 3.11
@@ -119,21 +125,7 @@ for evidence_paper in bundle.papers:
 
 ### Command-line interface
 
-Use the bundled CLI to ingest papers, inspect stored content, and query the index:
-
-```bash
-# Ingest a PDF directly from a URL
-uv run cli.py index https://example.com/paper.pdf
-
-# List all indexed papers with TEI metadata
-uv run cli.py papers
-
-# List all indexed chunks
-uv run cli.py chunks
-
-# Search for top results
-uv run cli.py query "graph neural networks"
-```
+A CLI is not included in this scoped release. Interact with the library through the Python API using DOIs or titles as inputs.
 
 ## Docker Services
 
