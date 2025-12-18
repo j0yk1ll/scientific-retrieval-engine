@@ -4,6 +4,7 @@ from .crossref_service import CrossrefService
 from .doi_resolver_service import DoiResolverService
 from .openalex_service import OpenAlexService
 from .opencitations_service import OpenCitationsService
+from .paper_merge_service import PaperMergeService
 from .search_service import PaperSearchService
 from .semanticscholar_service import SemanticScholarService
 from .paper_enrichment_service import PaperEnrichmentService
@@ -14,6 +15,7 @@ __all__ = [
     "DoiResolverService",
     "OpenAlexService",
     "OpenCitationsService",
+    "PaperMergeService",
     "PaperSearchService",
     "SemanticScholarService",
     "PaperEnrichmentService",

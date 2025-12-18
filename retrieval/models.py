@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -19,6 +19,7 @@ class Paper:
     pdf_url: Optional[str] = None
     is_oa: Optional[bool] = None
     authors: List[str] = field(default_factory=list)
+    provenance: Optional["PaperProvenance"] = None
 
 
 @dataclass
@@ -30,4 +31,21 @@ class Citation:
     creation: Optional[str] = None
 
 
-__all__ = ["Paper", "Citation"]
+@dataclass
+class PaperEvidence:
+    """Represents the source and raw value used for a specific field."""
+
+    source: str
+    value: Any
+
+
+@dataclass
+class PaperProvenance:
+    """Tracks how a merged Paper was constructed."""
+
+    sources: List[str] = field(default_factory=list)
+    source_records: Dict[str, str] = field(default_factory=dict)
+    field_sources: Dict[str, PaperEvidence] = field(default_factory=dict)
+
+
+__all__ = ["Paper", "Citation", "PaperEvidence", "PaperProvenance"]
