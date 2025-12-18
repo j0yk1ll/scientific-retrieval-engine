@@ -3,12 +3,19 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
 
 from retrieval.chunking import GrobidChunker
-from retrieval.hybrid import Chunk, Embedder
+from retrieval.hybrid.embeddings import Embedder
+from retrieval.hybrid.models import Chunk
 from retrieval.identifiers import normalize_doi
 from retrieval.models import Paper, PaperEvidence, PaperProvenance
+from retrieval.services.paper_merge_service import PaperMergeService
+
+if TYPE_CHECKING:  # pragma: no cover
+    from retrieval.api import RetrievalClient
+    from retrieval.services.paper_enrichment_service import PaperEnrichmentService
+    from retrieval.services.search_service import PaperSearchService
 
 
 @dataclass
@@ -137,21 +144,43 @@ class CachedPaperPipeline:
         self,
         *,
         cache: DoiFileCache,
-        metadata_service: "OpenAlexService",
+        search_service: "PaperSearchService" | None = None,
+        retrieval_client: "RetrievalClient" | None = None,
+        merge_service: PaperMergeService | None = None,
+        enrichment_service: "PaperEnrichmentService" | None = None,
         grobid_client: "GrobidClient",
         embedder: Embedder,
     ) -> None:
         self.cache = cache
-        self.metadata_service = metadata_service
+        if search_service and retrieval_client:
+            raise ValueError("Provide either search_service or retrieval_client, not both")
+        if not search_service and not retrieval_client:
+            raise ValueError("A search_service or retrieval_client is required")
+
+        self.retrieval_client = retrieval_client
+        self.search_service = (
+            search_service
+            if search_service is not None
+            else retrieval_client._search_service  # type: ignore[attr-defined]
+        )
+        self.merge_service = merge_service or self.search_service.merge_service
+        self.enrichment_service = (
+            enrichment_service
+            if enrichment_service is not None
+            else getattr(retrieval_client, "_paper_enrichment_service", None)
+        )
         self.grobid_client = grobid_client
         self.embedder = embedder
 
     def ingest(self, doi: str, *, pdf: str | bytes | Path) -> CachedPaperArtifacts:
         metadata = self.cache.load_metadata(doi)
         if metadata is None:
-            metadata = self.metadata_service.get_by_doi(doi)
-            if metadata is None:
+            candidates = self._search_by_doi(doi)
+            if not candidates:
                 raise ValueError(f"No metadata found for DOI '{doi}'")
+            metadata = self.merge_service.merge(candidates)
+            if self.enrichment_service:
+                metadata = self.enrichment_service.enrich(metadata)
             self.cache.store_metadata(doi, metadata)
 
         tei_xml = self.cache.load_tei(doi)
@@ -174,6 +203,11 @@ class CachedPaperPipeline:
         return CachedPaperArtifacts(
             paper=metadata, tei_xml=tei_xml, chunks=chunks, embeddings=embeddings
         )
+
+    def _search_by_doi(self, doi: str) -> List[Paper]:
+        if self.retrieval_client:
+            return self.retrieval_client.search_paper_by_doi(doi)
+        return self.search_service.search_by_doi(doi)
 
 
 __all__ = ["CachedPaperArtifacts", "CachedPaperPipeline", "DoiFileCache"]
