@@ -22,15 +22,18 @@ class BM25Index:
         tokenizer: TokenizeFn | None = None,
         k1: float = 1.5,
         b: float = 0.75,
+        include_query_term_frequency: bool = False,
     ) -> None:
         self.tokenizer: TokenizeFn = tokenizer or default_tokenizer
         self.k1 = k1
         self.b = b
+        self.include_query_term_frequency = include_query_term_frequency
         self._chunks: List[Chunk] = []
         self._term_freqs: List[Counter[str]] = []
         self._doc_lengths: List[int] = []
         self._doc_freqs: Dict[str, int] = defaultdict(int)
         self._avg_doc_len: float = 0.0
+        self._total_doc_len: int = 0
 
     def add(self, chunk: Chunk) -> None:
         tokens = self.tokenizer(chunk.text)
@@ -40,11 +43,12 @@ class BM25Index:
         self._term_freqs.append(term_freq)
         doc_len = len(tokens)
         self._doc_lengths.append(doc_len)
+        self._total_doc_len += doc_len
 
         for token in term_freq:
             self._doc_freqs[token] += 1
 
-        self._avg_doc_len = sum(self._doc_lengths) / len(self._doc_lengths)
+        self._avg_doc_len = self._total_doc_len / len(self._doc_lengths)
 
     def add_many(self, chunks: Iterable[Chunk]) -> None:
         for chunk in chunks:
@@ -55,13 +59,19 @@ class BM25Index:
             return []
 
         query_tokens = self.tokenizer(query)
-        unique_tokens = set(query_tokens)
+        token_counts = (
+            Counter(query_tokens) if self.include_query_term_frequency else set(query_tokens)
+        )
         scores: List[Tuple[Chunk, float]] = []
 
         for idx, chunk in enumerate(self._chunks):
             score = 0.0
-            for token in unique_tokens:
-                score += self._score_token(token, idx)
+            if isinstance(token_counts, Counter):
+                for token, query_tf in token_counts.items():
+                    score += self._score_token(token, idx) * query_tf
+            else:
+                for token in token_counts:
+                    score += self._score_token(token, idx)
             if score:
                 scores.append((chunk, score))
 
