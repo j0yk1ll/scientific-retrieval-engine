@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import math
+from collections import Counter, defaultdict
+from typing import Callable, Dict, Iterable, List, Tuple
+
+from .models import Chunk
+
+TokenizeFn = Callable[[str], List[str]]
+
+
+def default_tokenizer(text: str) -> List[str]:
+    return [token for token in text.lower().split() if token]
+
+
+class BM25Index:
+    """Minimal BM25 implementation over a corpus of chunks."""
+
+    def __init__(
+        self,
+        *,
+        tokenizer: TokenizeFn | None = None,
+        k1: float = 1.5,
+        b: float = 0.75,
+    ) -> None:
+        self.tokenizer: TokenizeFn = tokenizer or default_tokenizer
+        self.k1 = k1
+        self.b = b
+        self._chunks: List[Chunk] = []
+        self._term_freqs: List[Counter[str]] = []
+        self._doc_lengths: List[int] = []
+        self._doc_freqs: Dict[str, int] = defaultdict(int)
+        self._avg_doc_len: float = 0.0
+
+    def add(self, chunk: Chunk) -> None:
+        tokens = self.tokenizer(chunk.text)
+        term_freq = Counter(tokens)
+
+        self._chunks.append(chunk)
+        self._term_freqs.append(term_freq)
+        doc_len = len(tokens)
+        self._doc_lengths.append(doc_len)
+
+        for token in term_freq:
+            self._doc_freqs[token] += 1
+
+        self._avg_doc_len = sum(self._doc_lengths) / len(self._doc_lengths)
+
+    def add_many(self, chunks: Iterable[Chunk]) -> None:
+        for chunk in chunks:
+            self.add(chunk)
+
+    def search(self, query: str, *, k: int = 10) -> List[Tuple[Chunk, float]]:
+        if not query or not self._chunks:
+            return []
+
+        query_tokens = self.tokenizer(query)
+        unique_tokens = set(query_tokens)
+        scores: List[Tuple[Chunk, float]] = []
+
+        for idx, chunk in enumerate(self._chunks):
+            score = 0.0
+            for token in unique_tokens:
+                score += self._score_token(token, idx)
+            if score:
+                scores.append((chunk, score))
+
+        scores.sort(key=lambda item: item[1], reverse=True)
+        return scores[:k]
+
+    def _score_token(self, token: str, doc_idx: int) -> float:
+        tf = self._term_freqs[doc_idx].get(token, 0)
+        if tf == 0:
+            return 0.0
+
+        df = self._doc_freqs.get(token, 0)
+        if df == 0:
+            return 0.0
+
+        idf = math.log(1 + (len(self._chunks) - df + 0.5) / (df + 0.5))
+        doc_len = self._doc_lengths[doc_idx]
+        denom = tf + self.k1 * (1 - self.b + self.b * doc_len / self._avg_doc_len)
+        return idf * (tf * (self.k1 + 1)) / denom
+
+
+__all__ = ["BM25Index", "default_tokenizer"]
