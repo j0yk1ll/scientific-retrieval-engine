@@ -24,6 +24,12 @@ class PaperSearchService:
     The service resolves papers only by DOI or title and intentionally avoids
     URL-based lookups. Missing DOIs are upgraded through Crossref/DataCite title
     resolution when possible so merged results favor canonical identifiers.
+
+    Soft grouping is enabled by default to merge slight title variants (e.g.,
+    punctuation or short token swaps) that represent the same work. Grouping is
+    intentionally conservative to avoid collapsing distinct short titles: the
+    Jaccard threshold is never lower than 0.82 and only the first six tokens are
+    compared when looking for a match.
     """
 
     def __init__(
@@ -35,7 +41,7 @@ class PaperSearchService:
         datacite: Optional[DataCiteService] = None,
         doi_resolver: Optional[DoiResolverService] = None,
         merge_service: Optional[PaperMergeService] = None,
-        enable_soft_grouping: bool = False,
+        enable_soft_grouping: bool = True,
         soft_grouping_threshold: float = 0.82,
         soft_grouping_prefix_tokens: int = 6,
     ) -> None:
@@ -48,7 +54,7 @@ class PaperSearchService:
         )
         self.merge_service = merge_service or PaperMergeService()
         self.enable_soft_grouping = enable_soft_grouping
-        self.soft_grouping_threshold = soft_grouping_threshold
+        self.soft_grouping_threshold = max(soft_grouping_threshold, 0.82)
         self.soft_grouping_prefix_tokens = soft_grouping_prefix_tokens
 
     def search(
