@@ -377,3 +377,31 @@ def test_tie_handling_updates_selected_evidence() -> None:
 
     assert merged.abstract == "Longest abstract text so far"
     assert merged.provenance.field_sources["abstract"].source == "unknown"
+
+
+def test_primary_source_prefers_identifier_evidence_over_other_fields() -> None:
+    crossref = Paper(
+        paper_id="crossref:10",
+        title="",
+        doi="10.4321/primary",
+        abstract=None,
+        year=None,
+        venue=None,
+        source="crossref",
+    )
+
+    openalex = Paper(
+        paper_id="openalex:10",
+        title="Fresh and Improved Title",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="openalex",
+    )
+
+    merged = PaperMergeService().merge([openalex, crossref])
+
+    assert merged.title == "Fresh and Improved Title"
+    assert merged.primary_source == "crossref"
+    assert merged.provenance.field_sources["title"].source == "openalex"

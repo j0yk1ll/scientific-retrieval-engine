@@ -135,9 +135,21 @@ class DoiFileCache:
         if not path.exists():
             return None
         payload = json.loads(path.read_text())
-        if isinstance(payload, dict) and "embeddings" in payload:
-            return payload["embeddings"]
-        return payload
+        embeddings = payload["embeddings"] if isinstance(payload, dict) else payload
+
+        manifest = self._load_manifest(doi) or {}
+        expected_dim = None
+        embedder_manifest = manifest.get("embedder") or {}
+        if embedder_manifest:
+            expected_dim = embedder_manifest.get("dimension")
+        if expected_dim is None:
+            expected_dim = self.embedder_dimension
+
+        if not self._embeddings_payload_valid(embeddings, expected_dim):
+            self._invalidate_embeddings(doi)
+            return None
+
+        return embeddings
 
     def store_embeddings(
         self,
@@ -283,7 +295,6 @@ class DoiFileCache:
 
     def _invalidate_chunks(self, doi: str, *, include_embeddings: bool = False) -> None:
         self._chunks_path(doi).unlink(missing_ok=True)
-        self._manifest_path(doi).unlink(missing_ok=True)
         if include_embeddings:
             self._invalidate_embeddings(doi)
 
@@ -310,6 +321,24 @@ class DoiFileCache:
                 key: asdict(value) for key, value in provenance.field_sources.items()
             },
         }
+
+    @staticmethod
+    def _embeddings_payload_valid(
+        embeddings: object, expected_dim: int | None
+    ) -> bool:
+        if not isinstance(embeddings, list):
+            return False
+        if not embeddings:
+            return True
+        first_len = len(embeddings[0]) if isinstance(embeddings[0], Sequence) else None
+        for vector in embeddings:
+            if not isinstance(vector, Sequence):
+                return False
+            if expected_dim is not None and len(vector) != expected_dim:
+                return False
+            if expected_dim is None and first_len is not None and len(vector) != first_len:
+                return False
+        return expected_dim is None or first_len is None or first_len == expected_dim
 
 
 class CachedPaperPipeline:
