@@ -16,6 +16,7 @@ class HybridRetrievalConfig:
     bm25_k: int = 10
     vector_k: int = 10
     limit: int = 10
+    include_ranks: bool = False
 
 
 class HybridRetriever:
@@ -46,13 +47,15 @@ class HybridRetriever:
             fused,
             bm25_hits,
             weight=self.config.bm25_weight,
-            key="lexical_score",
+            raw_score_attr="lexical_raw_score",
+            rank_attr="lexical_rank",
         )
         self._accumulate_scores(
             fused,
             vector_hits,
             weight=self.config.vector_weight,
-            key="vector_score",
+            raw_score_attr="vector_raw_score",
+            rank_attr="vector_rank",
         )
 
         results = sorted(fused.values(), key=lambda item: item.fused_score, reverse=True)
@@ -64,7 +67,8 @@ class HybridRetriever:
         results: List[tuple[Chunk, float]],
         *,
         weight: float,
-        key: str,
+        raw_score_attr: str,
+        rank_attr: str,
     ) -> None:
         for rank, (chunk, score) in enumerate(results, start=1):
             fused_score = weight / (self.config.rrf_k + rank)
@@ -75,7 +79,9 @@ class HybridRetriever:
                 )
             else:
                 fused[chunk.chunk_id].fused_score += fused_score
-            setattr(fused[chunk.chunk_id], key, score)
+            setattr(fused[chunk.chunk_id], raw_score_attr, score)
+            if self.config.include_ranks:
+                setattr(fused[chunk.chunk_id], rank_attr, rank)
 
 
 __all__ = ["HybridRetriever", "HybridRetrievalConfig"]
