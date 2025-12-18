@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import random
+import logging
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional
 
-import random
-
 import requests
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_HEADERS: Dict[str, str] = {
     "User-Agent": "scientific-retrieval-engine",
@@ -17,6 +19,16 @@ DEFAULT_HEADERS: Dict[str, str] = {
 }
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+RETRY_STOP_AFTER_ATTEMPT = 3
+
+BASE_WAIT_MULTIPLIER = 0.5
+BASE_WAIT_MIN_SECONDS = 0.5
+BASE_WAIT_MAX_SECONDS = 8
+
+RATE_LIMIT_WAIT_MULTIPLIER = 0.75
+RATE_LIMIT_WAIT_MIN_SECONDS = 1.0
+RATE_LIMIT_WAIT_MAX_SECONDS = 12
 
 _shared_session: Optional[requests.Session] = None
 
@@ -101,11 +113,14 @@ def _parse_retry_after(value: Optional[str]) -> Optional[float]:
     return max(delay, 0.0)
 
 
-_BASE_WAIT_MAX = 8
-_RATE_LIMIT_WAIT_MAX = 12
-
-_base_wait = wait_exponential(multiplier=0.5, min=0.5, max=_BASE_WAIT_MAX)
-_rate_limit_wait = wait_exponential(multiplier=0.75, min=1.0, max=_RATE_LIMIT_WAIT_MAX)
+_base_wait = wait_exponential(
+    multiplier=BASE_WAIT_MULTIPLIER, min=BASE_WAIT_MIN_SECONDS, max=BASE_WAIT_MAX_SECONDS
+)
+_rate_limit_wait = wait_exponential(
+    multiplier=RATE_LIMIT_WAIT_MULTIPLIER,
+    min=RATE_LIMIT_WAIT_MIN_SECONDS,
+    max=RATE_LIMIT_WAIT_MAX_SECONDS,
+)
 
 _BODY_EXCERPT_LIMIT = 200
 
@@ -121,7 +136,7 @@ def _retry_wait(retry_state: RetryCallState) -> float:
         if isinstance(exception, RetryableResponseError):
             if exception.response.status_code == 429:
                 wait_strategy = _rate_limit_wait
-                max_wait_seconds = _RATE_LIMIT_WAIT_MAX
+                max_wait_seconds = RATE_LIMIT_WAIT_MAX_SECONDS
             wait_seconds = _parse_retry_after(exception.response.headers.get("Retry-After"))
 
     if wait_seconds is not None:
@@ -129,11 +144,32 @@ def _retry_wait(retry_state: RetryCallState) -> float:
 
     fallback = wait_strategy(retry_state)
     if max_wait_seconds is None:
-        max_wait_seconds = _BASE_WAIT_MAX
+        max_wait_seconds = BASE_WAIT_MAX_SECONDS
 
     jittered_min = fallback * 0.5
     jittered_max = min(fallback * 1.5, max_wait_seconds)
     return random.uniform(jittered_min, jittered_max)
+
+
+def _log_retry_attempt(retry_state: RetryCallState) -> None:
+    args = retry_state.args or ()
+    client = args[0] if args else None
+    if not getattr(client, "debug_logging", False):
+        return
+
+    method = args[1] if len(args) > 1 else "UNKNOWN"
+    url = args[2] if len(args) > 2 else ""
+    exception = retry_state.outcome.exception() if retry_state.outcome else None
+    reason = f" due to {exception}" if exception else ""
+    method_str = method.upper() if isinstance(method, str) else str(method)
+
+    logger.debug(
+        "Retry attempt %s for %s %s%s",
+        retry_state.attempt_number,
+        method_str,
+        url,
+        reason,
+    )
 
 
 def _sanitize_excerpt(text: str, max_length: int) -> str:
@@ -154,7 +190,14 @@ def _get_body_excerpt(response: requests.Response) -> Optional[str]:
 
 
 class BaseHttpClient:
-    """Base class providing shared HTTP behavior for retrieval clients."""
+    """Base class providing shared HTTP behavior for retrieval clients.
+
+    Retries are applied to network failures raised by ``requests`` and HTTP
+    responses with status codes in :data:`RETRYABLE_STATUS_CODES`. After the
+    retry budget is exhausted, HTTP 429 responses raise
+    :class:`RateLimitedError` (including any parsed ``Retry-After`` hint) while
+    5xx responses raise :class:`UpstreamError`.
+    """
 
     BASE_URL = ""
 
@@ -164,18 +207,21 @@ class BaseHttpClient:
         session: Optional[requests.Session] = None,
         base_url: Optional[str] = None,
         timeout: float = 10.0,
+        debug_logging: bool = False,
     ) -> None:
         self.session = session or _get_shared_session()
         for key, value in DEFAULT_HEADERS.items():
             self.session.headers.setdefault(key, value)
         self.base_url = base_url or self.BASE_URL
         self.timeout = timeout
+        self.debug_logging = debug_logging
 
     @retry(
         reraise=True,
-        stop=stop_after_attempt(3),
+        stop=stop_after_attempt(RETRY_STOP_AFTER_ATTEMPT),
         wait=_retry_wait,
         retry=retry_if_exception_type((requests.RequestException, RetryableResponseError)),
+        before_sleep=_log_retry_attempt,
     )
     def _send(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         response = self.session.request(method, url, timeout=self.timeout, **kwargs)
@@ -193,6 +239,8 @@ class BaseHttpClient:
         **kwargs: Any,
     ) -> requests.Response:
         url = f"{self.base_url}{path}"
+        if self.debug_logging:
+            logger.debug("HTTP %s %s", method.upper(), path)
         try:
             response = self._send(method, url, params=params, headers=headers, **kwargs)
         except RetryableResponseError as exc:
