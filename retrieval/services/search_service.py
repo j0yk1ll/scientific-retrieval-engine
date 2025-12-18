@@ -226,6 +226,10 @@ class PaperSearchService:
         if normalized_doi:
             return f"doi:{normalized_doi}"
 
+        paper_id_doi = self._paper_id_as_doi(paper.paper_id)
+        if paper_id_doi:
+            return f"doi:{paper_id_doi}"
+
         normalized_title = normalize_title(paper.title or paper.paper_id or "")
         components = [normalized_title]
 
@@ -237,6 +241,16 @@ class PaperSearchService:
         if ambiguous_title and paper.authors:
             components.append(normalize_title(paper.authors[0]))
         return "|".join(components)
+
+    def _paper_id_as_doi(self, paper_id: Optional[str]) -> Optional[str]:
+        normalized = normalize_doi(paper_id)
+        if not normalized:
+            return None
+
+        if normalized.startswith("10.") and "/" in normalized:
+            return normalized
+
+        return None
 
     def _find_soft_group_match(
         self, paper: Paper, grouped: Dict[str, List[Paper]]

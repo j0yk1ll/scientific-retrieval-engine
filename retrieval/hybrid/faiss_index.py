@@ -19,6 +19,7 @@ class FaissVectorIndex:
         self._chunks: List[Chunk] = []
         self._dim: int | None = None
         self._normalized: bool | None = None
+        self._metadata: dict[str, Any] | None = None
 
     def _ensure_index(self, dimension: int) -> None:
         if self._index is None:
@@ -55,8 +56,9 @@ class FaissVectorIndex:
         if self._index is None:
             raise ValueError("FAISS index is not initialized.")
 
-        self._index.add(np.array(vectors, dtype="float32"))
+        self._index.add(vectors)
         self._chunks.extend(chunk_list)
+        self._record_metadata(vector_dim)
 
     def search(self, query: str, *, k: int = 10) -> List[Tuple[Chunk, float]]:
         if not query:
@@ -73,9 +75,7 @@ class FaissVectorIndex:
                 f"Embedding dimension mismatch: expected {self._dim}, got {query_dim}"
             )
         search_k = min(k, len(self._chunks))
-        scores, indices = self._index.search(
-            np.array(query_vector, dtype="float32"), search_k
-        )
+        scores, indices = self._index.search(query_vector, search_k)
 
         results: List[Tuple[Chunk, float]] = []
         for score, idx in zip(scores[0], indices[0]):
@@ -91,11 +91,37 @@ class FaissVectorIndex:
             self._normalized = self.normalize
         elif self._normalized != self.normalize:
             raise ValueError(
-                "Cannot mix normalized and unnormalized vectors within the same index."
+                "Cannot mix normalized and unnormalized vectors within the same index. "
+                f"Existing vectors normalized={self._normalized}, "
+                f"requested normalize={self.normalize}."
             )
         if self.normalize:
             self._faiss.normalize_L2(matrix)
         return matrix
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        if self._metadata is None:
+            return None
+        return dict(self._metadata)
+
+    def _record_metadata(self, dimension: int) -> None:
+        if self._normalized is None:
+            return
+        embedder_name = (
+            getattr(self.embedder, "model_name", None)
+            or getattr(self.embedder, "model", None)
+            or self.embedder.__class__.__name__
+        )
+        metadata = {
+            "dimension": dimension,
+            "normalized": self._normalized,
+            "embedder": embedder_name,
+        }
+        if self._metadata is None:
+            self._metadata = metadata
+            return
+        self._metadata.update(metadata)
 
 
 __all__ = ["FaissVectorIndex"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from retrieval.hybrid.faiss_index import FaissVectorIndex
 from retrieval.hybrid.models import Chunk
@@ -80,3 +81,34 @@ def test_faiss_index_batches_embeddings(monkeypatch):
     assert len(results) == 2
     assert results[0][0].chunk_id == "c2"
     assert embedder.calls[-1] == ["second"]
+
+
+def test_faiss_index_reports_normalization_conflict(monkeypatch):
+    embedder = CountingEmbedder()
+    dummy_faiss = _make_dummy_faiss()
+    monkeypatch.setattr("retrieval.hybrid.faiss_index._load_faiss", lambda: dummy_faiss)
+
+    index = FaissVectorIndex(embedder, normalize=True)
+    index.add(Chunk(chunk_id="c1", paper_id="p1", text="first"))
+
+    index.normalize = False
+    with pytest.raises(
+        ValueError,
+        match="Existing vectors normalized=True, requested normalize=False",
+    ):
+        index.add(Chunk(chunk_id="c2", paper_id="p2", text="second"))
+
+
+def test_faiss_index_records_metadata(monkeypatch):
+    embedder = CountingEmbedder()
+    dummy_faiss = _make_dummy_faiss()
+    monkeypatch.setattr("retrieval.hybrid.faiss_index._load_faiss", lambda: dummy_faiss)
+
+    index = FaissVectorIndex(embedder, normalize=True)
+    index.add(Chunk(chunk_id="c1", paper_id="p1", text="first"))
+
+    assert index.metadata == {
+        "dimension": 2,
+        "normalized": True,
+        "embedder": "CountingEmbedder",
+    }
