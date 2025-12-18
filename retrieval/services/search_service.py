@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from retrieval.identifiers import normalize_doi, normalize_title
@@ -34,6 +35,9 @@ class PaperSearchService:
         datacite: Optional[DataCiteService] = None,
         doi_resolver: Optional[DoiResolverService] = None,
         merge_service: Optional[PaperMergeService] = None,
+        enable_soft_grouping: bool = False,
+        soft_grouping_threshold: float = 0.82,
+        soft_grouping_prefix_tokens: int = 6,
     ) -> None:
         self.openalex = openalex or OpenAlexService()
         self.semanticscholar = semanticscholar or SemanticScholarService()
@@ -43,6 +47,9 @@ class PaperSearchService:
             crossref=self.crossref, datacite=self.datacite
         )
         self.merge_service = merge_service or PaperMergeService()
+        self.enable_soft_grouping = enable_soft_grouping
+        self.soft_grouping_threshold = soft_grouping_threshold
+        self.soft_grouping_prefix_tokens = soft_grouping_prefix_tokens
 
     def search(
         self,
@@ -199,6 +206,10 @@ class PaperSearchService:
     ) -> None:
         for paper in incoming:
             key = self._make_group_key(paper)
+            if self.enable_soft_grouping:
+                soft_key = self._find_soft_group_match(paper, grouped)
+                if soft_key:
+                    key = soft_key
             if key not in grouped:
                 grouped[key] = []
                 order.append(key)
@@ -211,8 +222,72 @@ class PaperSearchService:
 
         normalized_title = normalize_title(paper.title or paper.paper_id or "")
         components = [normalized_title]
-        if paper.year:
+
+        tokens = self._tokenize_title(normalized_title)
+        ambiguous_title = len(tokens) <= 3 or len(normalized_title) <= 25
+
+        if ambiguous_title and paper.year:
             components.append(str(paper.year))
-        if paper.authors:
+        if ambiguous_title and paper.authors:
             components.append(normalize_title(paper.authors[0]))
         return "|".join(components)
+
+    def _find_soft_group_match(
+        self, paper: Paper, grouped: Dict[str, List[Paper]]
+    ) -> Optional[str]:
+        normalized_doi = normalize_doi(paper.doi)
+        if normalized_doi or not paper.title:
+            return None
+
+        candidate_tokens = self._tokenize_title(normalize_title(paper.title))
+        if not candidate_tokens:
+            return None
+
+        prefix = self._title_prefix(candidate_tokens)
+
+        best_key: Optional[str] = None
+        best_score = 0.0
+
+        for key, grouped_papers in grouped.items():
+            if key.startswith("doi:"):
+                continue
+
+            representative = grouped_papers[0]
+            if not representative.title:
+                continue
+
+            representative_tokens = self._tokenize_title(
+                normalize_title(representative.title)
+            )
+            if not representative_tokens:
+                continue
+
+            if self._title_prefix(representative_tokens) != prefix:
+                continue
+
+            similarity = self._jaccard_similarity(candidate_tokens, representative_tokens)
+            if similarity >= self.soft_grouping_threshold and similarity > best_score:
+                best_key = key
+                best_score = similarity
+
+        return best_key
+
+    def _tokenize_title(self, normalized_title: str) -> List[str]:
+        if not normalized_title:
+            return []
+        return re.findall(r"[a-z0-9]+", normalized_title)
+
+    def _title_prefix(self, tokens: List[str]) -> str:
+        return " ".join(tokens[: self.soft_grouping_prefix_tokens])
+
+    def _jaccard_similarity(self, left: List[str], right: List[str]) -> float:
+        if not left or not right:
+            return 0.0
+
+        left_set = set(left)
+        right_set = set(right)
+        intersection = len(left_set & right_set)
+        union = len(left_set | right_set)
+        if union == 0:
+            return 0.0
+        return intersection / union
