@@ -37,6 +37,8 @@ class GrobidChunk:
 class GrobidChunker:
     """Turn GROBID TEI output into reproducible text chunks."""
 
+    VERSION = "1"
+
     def __init__(
         self, paper_id: str, tei_xml: str, *, encoding_name: str | None = None
     ) -> None:
