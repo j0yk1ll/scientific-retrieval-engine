@@ -8,8 +8,8 @@ from retrieval.clients.unpaywall import UnpaywallClient, UnpaywallRecord
 class UnpaywallService:
     """Thin wrapper around UnpaywallClient to expose normalized calls."""
 
-    def __init__(self, client: Optional[UnpaywallClient] = None) -> None:
-        self.client = client or UnpaywallClient()
+    def __init__(self, client: UnpaywallClient) -> None:
+        self.client = client
 
     def get_record(self, doi: str) -> Optional[UnpaywallRecord]:
         if not doi:

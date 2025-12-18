@@ -8,7 +8,7 @@ from .models import Paper
 
 @dataclass
 class SessionIndex:
-    """In-memory storage for the current session."""
+    """In-memory storage for a retrieval client session."""
 
     papers: Dict[str, Paper] = field(default_factory=dict)
     evidence: Dict[str, List[Paper]] = field(default_factory=dict)
@@ -26,6 +26,3 @@ class SessionIndex:
 
     def get_paper(self, paper_id: str) -> Optional[Paper]:
         return self.papers.get(paper_id)
-
-
-SESSION_INDEX = SessionIndex()
