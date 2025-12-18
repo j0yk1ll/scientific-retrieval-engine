@@ -30,10 +30,13 @@ class OpenCitationsClient(BaseHttpClient):
             return []
 
         payload = response.json()
+        def _normalize_identifier(identifier: str) -> str:
+            return normalize_doi(identifier) or (identifier.strip() if identifier else "")
+
         return [
             Citation(
-                citing=item.get("citing") or "",
-                cited=item.get("cited") or "",
+                citing=_normalize_identifier(item.get("citing")),
+                cited=_normalize_identifier(item.get("cited")),
                 creation=item.get("creation"),
             )
             for item in payload

@@ -89,7 +89,9 @@ class DoiResolverService:
                     if similarity < 1.0 and author_overlap == 0:
                         continue
 
-                score = similarity + author_overlap
+                # Limit the influence of author overlap so weak title matches
+                # do not outrank strong similarities.
+                score = similarity + min(author_overlap, 1)
                 if score > best_score:
                     best_score = score
                     best_doi = candidate.doi

@@ -11,6 +11,8 @@ class SessionIndex:
     """In-memory storage for a retrieval client session."""
 
     papers: Dict[str, Paper] = field(default_factory=dict)
+    # Evidence items are keyed by query string only; there is no linkage to paper
+    # identifiers to preserve backward compatibility with existing clients.
     evidence: Dict[str, List[Paper]] = field(default_factory=dict)
 
     def reset(self) -> None:
