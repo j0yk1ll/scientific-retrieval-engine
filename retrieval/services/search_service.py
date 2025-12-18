@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable, List, Optional, Set
 
+from retrieval.identifiers import normalize_doi, normalize_title
 from retrieval.models import Paper
 
 from .openalex_service import OpenAlexService
@@ -77,8 +78,17 @@ class PaperSearchService:
         self, incoming: Iterable[Paper], target: List[Paper], seen: Set[str]
     ) -> None:
         for paper in incoming:
-            normalized_title = (paper.title or paper.paper_id or "").lower()
-            key = paper.doi or normalized_title
+            normalized_doi = normalize_doi(paper.doi)
+            if normalized_doi:
+                key = f"doi:{normalized_doi}"
+            else:
+                normalized_title = normalize_title(paper.title or paper.paper_id or "")
+                components = [normalized_title]
+                if paper.year:
+                    components.append(str(paper.year))
+                if paper.authors:
+                    components.append(normalize_title(paper.authors[0]))
+                key = "|".join(components)
             if key in seen:
                 continue
             seen.add(key)

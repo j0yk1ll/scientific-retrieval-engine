@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from retrieval.identifiers import normalize_doi
 from retrieval.models import Paper
 
 
@@ -53,10 +54,11 @@ class SemanticScholarService:
         return [self._to_paper(item) for item in data.get("data", [])]
 
     def get_by_doi(self, doi: str) -> Optional[Paper]:
-        if not doi:
+        normalized_doi = normalize_doi(doi)
+        if not normalized_doi:
             return None
         response = self.session.get(
-            f"{self.base_url}/paper/DOI:{doi}",
+            f"{self.base_url}/paper/DOI:{normalized_doi}",
             params={"fields": "title,abstract,year,venue,authors,url,doi"},
             timeout=self.timeout,
         )
@@ -70,10 +72,11 @@ class SemanticScholarService:
 
     def _to_paper(self, payload: Dict[str, Any]) -> Paper:
         authors = [author.get("name", "") for author in payload.get("authors", []) if author.get("name")]
+        normalized_doi = normalize_doi(payload.get("doi"))
         return Paper(
             paper_id=str(payload.get("paperId") or payload.get("externalIds", {}).get("CorpusId") or payload.get("doi") or payload.get("title") or ""),
             title=payload.get("title") or "",
-            doi=payload.get("doi"),
+            doi=normalized_doi,
             abstract=payload.get("abstract"),
             year=payload.get("year"),
             venue=payload.get("venue"),
