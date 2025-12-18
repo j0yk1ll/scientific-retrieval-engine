@@ -60,6 +60,31 @@ def test_bm25_prioritizes_lexical_match():
     assert results[0][1] > 0
 
 
+def test_bm25_tokenizer_splits_punctuation():
+    bm25 = BM25Index()
+
+    tokens = bm25.tokenizer("AI-based, health-care: systems!!!")
+
+    assert tokens == ["ai", "based", "health", "care", "systems"]
+
+
+def test_bm25_search_matches_without_punctuation_exactness():
+    bm25 = BM25Index()
+    chunks = [
+        Chunk(
+            chunk_id="1",
+            paper_id="p1",
+            text="Breakthrough in AI-based, health-care: systems.",
+        ),
+    ]
+    bm25.add_many(chunks)
+
+    results = bm25.search("AI based health care systems")
+
+    assert results
+    assert results[0][0].chunk_id == "1"
+
+
 def test_bm25_avg_length_and_query_term_frequency():
     bm25 = BM25Index(include_query_term_frequency=True)
     chunks = [
