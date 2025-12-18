@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
+import pytest
+
 from retrieval.chunking import GrobidChunk
 from retrieval.hybrid import (
     BM25Index,
@@ -29,6 +31,21 @@ class StaticEmbedder:
         return vectors
 
 
+class VariableDimEmbedder:
+    def __init__(self, mismatch_on: str, base_dim: int = 1):
+        self.mismatch_on = mismatch_on
+        self.base_dim = base_dim
+
+    def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+        vectors: list[Sequence[float]] = []
+        for text in texts:
+            if text == self.mismatch_on:
+                vectors.append([0.0] * (self.base_dim + 1))
+            else:
+                vectors.append([0.0] * self.base_dim)
+        return vectors
+
+
 def test_bm25_prioritizes_lexical_match():
     bm25 = BM25Index()
     chunks = [
@@ -41,6 +58,23 @@ def test_bm25_prioritizes_lexical_match():
 
     assert results[0][0].chunk_id == "1"
     assert results[0][1] > 0
+
+
+def test_bm25_avg_length_and_query_term_frequency():
+    bm25 = BM25Index(include_query_term_frequency=True)
+    chunks = [
+        Chunk(chunk_id="1", paper_id="p1", text="apple apple"),
+        Chunk(chunk_id="2", paper_id="p2", text="banana"),
+    ]
+    bm25.add_many(chunks)
+
+    assert bm25._total_doc_len == 3
+    assert bm25._avg_doc_len == pytest.approx(1.5)
+
+    results = bm25.search("apple apple banana", k=2)
+
+    assert results
+    assert results[0][0].chunk_id == "1"
 
 
 def test_hybrid_prefers_semantic_match_when_lexical_absent():
@@ -91,3 +125,16 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
     assert results[0].chunk.chunk_id == "chunk-2"
     assert results[0].vector_score is not None
     assert results[0].lexical_score is None or results[0].lexical_score <= results[0].vector_score
+
+
+def test_faiss_dimension_mismatch_raises():
+    embedder = VariableDimEmbedder(mismatch_on="bad")
+    index = FaissVectorIndex(embedder)
+
+    index.add(Chunk(chunk_id="1", paper_id="p1", text="ok"))
+
+    with pytest.raises(ValueError, match=r"expected 1, got 2"):
+        index.add(Chunk(chunk_id="2", paper_id="p2", text="bad"))
+
+    with pytest.raises(ValueError, match=r"expected 1, got 2"):
+        index.search("bad")
