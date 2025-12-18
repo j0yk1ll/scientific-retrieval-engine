@@ -127,7 +127,18 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
     assert results[0].lexical_score is None or results[0].lexical_score <= results[0].vector_score
 
 
-def test_faiss_dimension_mismatch_raises():
+def test_faiss_sets_dim_on_first_ensure_index():
+    embedder = StaticEmbedder({}, default=[0.0, 0.0])
+    index = FaissVectorIndex(embedder)
+
+    assert index._dim is None
+
+    index._ensure_index(2)
+
+    assert index._dim == 2
+
+
+def test_faiss_raises_on_dim_mismatch_add():
     embedder = VariableDimEmbedder(mismatch_on="bad")
     index = FaissVectorIndex(embedder)
 
@@ -135,6 +146,13 @@ def test_faiss_dimension_mismatch_raises():
 
     with pytest.raises(ValueError, match=r"expected 1, got 2"):
         index.add(Chunk(chunk_id="2", paper_id="p2", text="bad"))
+
+
+def test_faiss_raises_on_dim_mismatch_search_query_vector():
+    embedder = VariableDimEmbedder(mismatch_on="bad")
+    index = FaissVectorIndex(embedder)
+
+    index.add(Chunk(chunk_id="1", paper_id="p1", text="ok"))
 
     with pytest.raises(ValueError, match=r"expected 1, got 2"):
         index.search("bad")

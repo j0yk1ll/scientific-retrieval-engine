@@ -18,10 +18,14 @@ class FaissVectorIndex:
         self._index: Any | None = None
         self._chunks: List[Chunk] = []
         self._dim: int | None = None
+        self._normalized: bool | None = None
 
     def _ensure_index(self, dimension: int) -> None:
         if self._index is None:
             self._index = self._faiss.IndexFlatIP(dimension)
+            self._dim = dimension
+        elif self._dim is None:
+            self._dim = dimension
         elif self._dim is not None and dimension != self._dim:
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self._dim}, got {dimension}"
@@ -30,14 +34,13 @@ class FaissVectorIndex:
     def add(self, chunk: Chunk) -> None:
         vector = self._embed_texts([chunk.text])[0]
         vector_dim = len(vector)
+        self._ensure_index(vector_dim)
         if self._dim is None:
-            self._dim = vector_dim
-        elif vector_dim != self._dim:
+            raise ValueError("FAISS index dimension is not initialized.")
+        if vector_dim != self._dim:
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self._dim}, got {vector_dim}"
             )
-
-        self._ensure_index(vector_dim)
         self._index.add(np.array([vector], dtype="float32"))
         self._chunks.append(chunk)
 
@@ -46,7 +49,11 @@ class FaissVectorIndex:
             self.add(chunk)
 
     def search(self, query: str, *, k: int = 10) -> List[Tuple[Chunk, float]]:
-        if not query or not self._chunks or self._index is None:
+        if not query:
+            return []
+        if self._index is None or self._dim is None:
+            raise ValueError("FAISS index is not initialized. Add vectors before searching.")
+        if not self._chunks:
             return []
 
         query_vector = self._embed_texts([query])
@@ -70,6 +77,12 @@ class FaissVectorIndex:
     def _embed_texts(self, texts: List[str]) -> np.ndarray:
         embeddings = self.embedder.embed(texts)
         matrix = np.array(embeddings, dtype="float32")
+        if self._normalized is None:
+            self._normalized = self.normalize
+        elif self._normalized != self.normalize:
+            raise ValueError(
+                "Cannot mix normalized and unnormalized vectors within the same index."
+            )
         if self.normalize:
             self._faiss.normalize_L2(matrix)
         return matrix
