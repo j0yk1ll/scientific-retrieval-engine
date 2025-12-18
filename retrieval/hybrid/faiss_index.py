@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Tuple
+from typing import Any, Iterable, List, Tuple
 
-import faiss
 import numpy as np
 
 from .embeddings import Embedder
@@ -15,12 +14,13 @@ class FaissVectorIndex:
     def __init__(self, embedder: Embedder, *, normalize: bool = True) -> None:
         self.embedder = embedder
         self.normalize = normalize
-        self._index: faiss.Index | None = None
+        self._faiss = _load_faiss()
+        self._index: Any | None = None
         self._chunks: List[Chunk] = []
 
     def _ensure_index(self, dimension: int) -> None:
         if self._index is None:
-            self._index = faiss.IndexFlatIP(dimension)
+            self._index = self._faiss.IndexFlatIP(dimension)
 
     def add(self, chunk: Chunk) -> None:
         vector = self._embed_texts([chunk.text])[0]
@@ -53,8 +53,19 @@ class FaissVectorIndex:
         embeddings = self.embedder.embed(texts)
         matrix = np.array(embeddings, dtype="float32")
         if self.normalize:
-            faiss.normalize_L2(matrix)
+            self._faiss.normalize_L2(matrix)
         return matrix
 
 
 __all__ = ["FaissVectorIndex"]
+
+
+def _load_faiss():
+    try:
+        import faiss
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "Hybrid retrieval requires the optional dependency 'faiss-cpu'. "
+            "Install it with `pip install faiss-cpu`."
+        ) from exc
+    return faiss

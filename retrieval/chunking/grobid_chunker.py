@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Sequence
-
-from lxml import etree
-import tiktoken
+from typing import Any, List, Sequence
 
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -45,6 +42,7 @@ class GrobidChunker:
     ) -> None:
         self.paper_id = paper_id
         self.tei_xml = tei_xml
+        self._etree = _load_lxml()
         self.encoding = self._build_encoding(encoding_name)
         self.document = self._parse_document()
 
@@ -119,7 +117,7 @@ class GrobidChunker:
         return sections
 
     def _parse_document(self) -> GrobidDocument:
-        root = etree.fromstring(self.tei_xml.encode())
+        root = self._etree.fromstring(self.tei_xml.encode())
 
         title_nodes = root.xpath(".//tei:titleStmt/tei:title", namespaces=TEI_NS)
         title = self._node_text(title_nodes[0]) if title_nodes else ""
@@ -153,7 +151,7 @@ class GrobidChunker:
         )
 
     @staticmethod
-    def _node_text(node: etree._Element) -> str:
+    def _node_text(node: Any) -> str:
         return " ".join(" ".join(node.itertext()).split()).strip()
 
     def _count_tokens(self, text: str) -> int:
@@ -204,9 +202,32 @@ class GrobidChunker:
         if encoding_name is None:
             return _WhitespaceEncoding()
         try:
+            tiktoken = _load_tiktoken()
             return tiktoken.get_encoding(encoding_name)
         except Exception:  # pragma: no cover - network or cache dependent
             return _WhitespaceEncoding()
+
+
+def _load_lxml():
+    try:
+        from lxml import etree
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "GROBID chunking requires the optional dependency 'lxml'. "
+            "Install it with `pip install lxml`."
+        ) from exc
+    return etree
+
+
+def _load_tiktoken():
+    try:
+        import tiktoken
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "GROBID chunking requires the optional dependency 'tiktoken'. "
+            "Install it with `pip install tiktoken`."
+        ) from exc
+    return tiktoken
 
 
 class _WhitespaceEncoding:
