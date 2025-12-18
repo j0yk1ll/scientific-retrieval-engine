@@ -8,23 +8,24 @@ from retrieval.models import Paper, PaperEvidence, PaperProvenance
 
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
 
+PrioritySpec = Sequence[str | Sequence[str]]
+PriorityGroups = Tuple[Tuple[str, ...], ...]
+
 
 class PaperMergeService:
     """Merge multiple records for the same paper into a single enriched record."""
 
-    def __init__(
-        self, *, source_priority: Sequence[str | Sequence[str]] | None = None
-    ) -> None:
-        self.source_priority_order = self._normalize_priority_spec(
+    def __init__(self, *, source_priority: PrioritySpec | None = None) -> None:
+        self.priority_groups: PriorityGroups = self._normalize_priority_spec(
             source_priority or DEFAULT_SOURCE_PRIORITY
         )
+        self.flat_priority_order: Tuple[str, ...] = tuple(
+            source for group in self.priority_groups for source in group
+        )
         self.source_priority: Dict[str, int] = {}
-        for idx, entry in enumerate(self.source_priority_order):
-            if isinstance(entry, (list, tuple, set)):
-                for source in entry:
-                    self.source_priority[source] = idx
-            else:
-                self.source_priority[entry] = idx
+        for idx, group in enumerate(self.priority_groups):
+            for source in group:
+                self.source_priority[source] = idx
 
     def merge(self, papers: List[Paper]) -> Paper:
         if not papers:
@@ -34,15 +35,15 @@ class PaperMergeService:
         provenance = self._build_provenance(papers)
 
         field_priorities = {
-            "doi": self.source_priority_order,
-            "year": self.source_priority_order,
-            "venue": self.source_priority_order,
-            "url": self.source_priority_order,
+            "doi": self.priority_groups,
+            "year": self.priority_groups,
+            "venue": self.priority_groups,
+            "url": self.priority_groups,
             "abstract": self._normalize_priority_spec(
-                (("openalex", "semanticscholar"), *self.source_priority_order)
+                (("openalex", "semanticscholar"), *self.priority_groups)
             ),
             "authors": self._normalize_priority_spec(
-                (("openalex", "semanticscholar"), *self.source_priority_order)
+                (("openalex", "semanticscholar"), *self.priority_groups)
             ),
         }
 
@@ -62,11 +63,11 @@ class PaperMergeService:
             "paper_id",
             self._is_non_empty,
             preferred_value=doi_value,
-            priority_order=self.source_priority_order,
+            priority_order=self.priority_groups,
         )
 
         selections["title"] = self._select_field(
-            papers, "title", self._is_non_empty, priority_order=self.source_priority_order
+            papers, "title", self._is_non_empty, priority_order=self.priority_groups
         )
         selections["abstract"] = self._select_field(
             papers,
@@ -88,10 +89,10 @@ class PaperMergeService:
             papers,
             "pdf_url",
             self._is_non_empty,
-            priority_order=self.source_priority_order,
+            priority_order=self.priority_groups,
         )
         selections["is_oa"] = self._select_field(
-            papers, "is_oa", self._is_not_none, priority_order=self.source_priority_order
+            papers, "is_oa", self._is_not_none, priority_order=self.priority_groups
         )
         selections["authors"] = self._select_field(
             papers,
@@ -142,10 +143,10 @@ class PaperMergeService:
 
     def _rank_key(self, paper: Paper, position: int) -> Tuple[int, int, int]:
         doi_rank = 0 if normalize_doi(paper.doi) else 1
-        source_rank = self._source_rank(paper.source, self.source_priority_order)
+        source_rank = self._source_rank(paper.source, self.priority_groups)
         return (doi_rank, source_rank, position)
 
-    def _source_rank(self, source: str, priority_order: Sequence[Any]) -> int:
+    def _source_rank(self, source: str, priority_order: PrioritySpec) -> int:
         for idx, entry in enumerate(priority_order):
             if isinstance(entry, (list, tuple, set)):
                 if source in entry:
@@ -176,7 +177,7 @@ class PaperMergeService:
         predicate,
         *,
         preferred_value: Any | None = None,
-        priority_order: Sequence[str] | None = None,
+        priority_order: PrioritySpec | None = None,
         tie_breaker=None,
         transform=None,
     ) -> Tuple[Any, PaperEvidence | None]:
@@ -185,7 +186,7 @@ class PaperMergeService:
         selected_rank: int | None = None
         selected_position: int | None = None
 
-        priorities = priority_order or self.source_priority_order
+        priorities = priority_order or self.priority_groups
 
         for position, paper in enumerate(papers):
             raw_value = getattr(paper, field_name)
@@ -270,8 +271,8 @@ class PaperMergeService:
 
     @staticmethod
     def _normalize_priority_spec(
-        spec: Sequence[str | Sequence[str]],
-    ) -> Tuple[Tuple[str, ...], ...]:
+        spec: PrioritySpec,
+    ) -> PriorityGroups:
         normalized: List[Tuple[str, ...]] = []
         seen: set[str] = set()
 

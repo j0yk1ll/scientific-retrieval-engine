@@ -179,3 +179,46 @@ def test_embeddings_are_invalidated_when_embedder_changes(cache_dir: Path) -> No
     assert cache.load_embeddings(doi) is None
     assert not embeddings_path.exists()
 
+
+def test_manifest_is_preserved_when_chunks_invalidated(cache_dir: Path) -> None:
+    cache = DoiFileCache(cache_dir, chunk_encoding_name="enc", chunker_version="v1")
+    doi = "10.0000/retain-manifest"
+
+    manifest = {
+        "cache_version": CACHE_VERSION,
+        "chunker_version": "v1",
+        "encoding": "enc",
+    }
+    cache._doi_dir(doi).mkdir(parents=True, exist_ok=True)
+    cache._write_manifest(doi, manifest)
+    cache._chunks_path(doi).write_text("[]")
+    cache._embeddings_path(doi).write_text(json.dumps({"embeddings": []}))
+
+    cache.chunk_encoding_name = "other"
+
+    assert cache.load_chunks(doi) is None
+    assert cache._manifest_path(doi).exists()
+    assert not cache._chunks_path(doi).exists()
+    assert not cache._embeddings_path(doi).exists()
+
+
+def test_embeddings_are_invalidated_when_dimension_mismatch(cache_dir: Path) -> None:
+    cache = DoiFileCache(cache_dir, embedder_dimension=3)
+    doi = "10.0000/dimension"
+
+    manifest = {
+        "cache_version": CACHE_VERSION,
+        "chunker_version": "v1",
+        "encoding": None,
+        "embedder": {"model": "m", "dimension": 3, "normalized": False},
+    }
+
+    cache._doi_dir(doi).mkdir(parents=True, exist_ok=True)
+    cache._write_manifest(doi, manifest)
+    cache._embeddings_path(doi).write_text(
+        json.dumps({"embeddings": [[0.1, 0.2]]})
+    )
+
+    assert cache.load_embeddings(doi) is None
+    assert not cache._embeddings_path(doi).exists()
+

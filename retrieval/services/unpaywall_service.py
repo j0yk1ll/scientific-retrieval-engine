@@ -21,6 +21,9 @@ class UnpaywallService:
         timeout: Optional[float] = None,
     ) -> None:
         if client is None:
+            if settings is None and email is None:
+                raise ValueError("UnpaywallService requires a client, settings, or contact email")
+
             resolved_settings = settings or RetrievalSettings()
             contact_email = email or resolved_settings.unpaywall_email
             if not contact_email:
