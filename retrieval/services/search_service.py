@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 class PaperSearchService:
-    """Aggregate paper search across OpenAlex and Semantic Scholar."""
+    """Aggregate paper search across OpenAlex and Semantic Scholar.
+
+    The service resolves papers only by DOI or title and intentionally avoids
+    URL-based lookups or preprint-specific logic.
+    """
 
     def __init__(
         self,
