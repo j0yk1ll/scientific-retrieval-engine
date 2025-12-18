@@ -15,17 +15,25 @@ def test_chunker_orders_sections_and_respects_max_chars() -> None:
 
     chunks = chunker.chunk(xml)
 
-    assert [chunk.section for chunk in chunks] == [
+    assert [chunk.section_path for chunk in chunks] == [
+        ["Introduction"],
+        ["Introduction"],
+        ["Methods"],
+        ["Methods", "Data"],
+    ]
+    assert [chunk.section_title for chunk in chunks] == [
         "Introduction",
         "Introduction",
         "Methods",
-        "Methods > Data",
+        "Data",
     ]
     assert chunks[0].text == "First paragraph text with extra whitespace."
     assert chunks[1].text == "Second paragraph text to combine."
     assert chunks[2].text == "Detailed methods paragraph."
     assert chunks[3].text == "Nested paragraph that should be kept with its section."
     assert all(not chunk.citations for chunk in chunks)
+    assert all(chunk.kind == "section_paragraph" for chunk in chunks)
+    assert [chunk.position for chunk in chunks] == [0, 1, 2, 3]
 
 
 def test_chunker_raises_for_missing_body() -> None:

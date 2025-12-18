@@ -12,13 +12,18 @@ from retrieval.storage.models import Paper
 class ChunkSearchResult:
     """A ranked chunk returned from the search index."""
 
-    chunk_id: int
-    paper_id: int
-    chunk_order: int
-    section: str | None
+    chunk_id: str  # Now uses the stable chunk_id string
+    db_id: int  # Database primary key
+    paper_id: int  # Database FK to papers
+    paper_uuid: str  # Paper's stable UUID
+    kind: str
+    position: int
+    section_title: str | None
+    order_in_section: int | None
     content: str
     score: float
     citations: tuple[str, ...] = field(default_factory=tuple)
+    language: str | None = None
 
 
 @dataclass(frozen=True)

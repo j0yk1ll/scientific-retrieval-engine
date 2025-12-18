@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -9,7 +10,6 @@ from psycopg import Connection
 
 from retrieval.config import RetrievalConfig
 from retrieval.engine import RetrievalEngine
-from retrieval.parsing.citations import extract_citations
 from retrieval.retrieval.types import ChunkSearchResult
 from retrieval.storage.dao import (
     get_all_chunks,
@@ -21,7 +21,25 @@ from retrieval.storage.dao import (
     get_papers_by_ids,
 )
 from retrieval.storage.db import get_connection
-from retrieval.storage.models import Chunk, Paper, PaperFile
+from retrieval.storage.models import (
+    Chunk,
+    ChunkKind,
+    Paper,
+    PaperAuthor,
+    PaperFile,
+    PaperChunkOutput,
+    PaperRecordOutput,
+    AuthorOutput,
+    VenueOutput,
+    FingerprintsOutput,
+    ProvenanceOutput,
+    ParserOutput,
+    PdfAnchorOutput,
+    TeiAnchorOutput,
+    CharRangeOutput,
+    ExternalSource,
+    VenueType,
+)
 
 
 def _read_tei_xml(files: Sequence[PaperFile]) -> str | None:
@@ -38,34 +56,136 @@ def _read_tei_xml(files: Sequence[PaperFile]) -> str | None:
     return None
 
 
+def _serialize_chunk_output(chunk: Chunk) -> dict[str, Any]:
+    """Serialize a Chunk to the PaperChunk JSON schema format."""
+    output = PaperChunkOutput(
+        chunk_id=chunk.chunk_id,
+        paper_id=chunk.paper_uuid,
+        kind=ChunkKind(chunk.kind),
+        position=chunk.position,
+        title=chunk.section_title,
+        order_in_section=chunk.order_in_section,
+        pdf=PdfAnchorOutput(
+            page_start=chunk.pdf_page_start,
+            page_end=chunk.pdf_page_end,
+            bbox=chunk.pdf_bbox,
+        ) if chunk.pdf_page_start or chunk.pdf_page_end or chunk.pdf_bbox else None,
+        tei=TeiAnchorOutput(
+            tei_id=chunk.tei_id,
+            xpath=chunk.tei_xpath,
+        ) if chunk.tei_id or chunk.tei_xpath else None,
+        char_range=CharRangeOutput(
+            start=chunk.char_start,
+            end=chunk.char_end,
+        ) if chunk.char_start is not None or chunk.char_end is not None else None,
+        text=chunk.content,
+        citations=chunk.citations or [],
+    )
+    return output.model_dump(mode="json", exclude_none=True)
+
+
+def _serialize_paper_record_output(
+    paper: Paper,
+    authors: Sequence[PaperAuthor],
+) -> dict[str, Any]:
+    """Serialize a Paper to the PaperRecord JSON schema format."""
+    # Determine external source - use the paper's stored value if available
+    if paper.external_source:
+        external_source = ExternalSource(paper.external_source)
+    elif paper.doi:
+        external_source = ExternalSource.DOI
+    else:
+        # Default to None if no clear external source is known
+        external_source = None
+    
+    # Use the paper's stored external_id, falling back to DOI if external_source is DOI
+    if paper.external_id:
+        external_id = paper.external_id
+    elif external_source == ExternalSource.DOI and paper.doi:
+        external_id = paper.doi
+    else:
+        external_id = None
+    
+    # Convert authors
+    author_outputs = [
+        AuthorOutput(
+            name=author.author_name,
+            orcid=author.orcid,
+            affiliations=author.affiliations or [],
+        )
+        for author in authors
+    ]
+    
+    # Build venue if available
+    venue = None
+    if paper.venue_name or paper.venue_type or paper.venue_publisher:
+        venue = VenueOutput(
+            name=paper.venue_name,
+            type=VenueType(paper.venue_type) if paper.venue_type else None,
+            publisher=paper.venue_publisher,
+        )
+    
+    # Format publication date
+    publication_date = None
+    if paper.published_at:
+        publication_date = paper.published_at.isoformat()
+    
+    # Build fingerprints
+    content_hash = paper.content_hash or "sha256:unknown"
+    fingerprints = FingerprintsOutput(
+        content_hash=content_hash,
+        pdf_sha256=paper.pdf_sha256,
+    )
+    
+    # Build provenance
+    provenance = ProvenanceOutput(
+        source=paper.provenance_source or "unknown",
+        parser=ParserOutput(
+            name="grobid" if paper.parser_name == "grobid" else "other",
+            version=paper.parser_version or "unknown",
+        ),
+        ingested_at=paper.ingested_at or paper.created_at or datetime.now(),
+        parser_warnings=paper.parser_warnings or [],
+    )
+    
+    output = PaperRecordOutput(
+        paper_id=paper.paper_id,
+        external_source=external_source,
+        external_id=external_id,
+        title=paper.title,
+        authors=author_outputs,
+        venue=venue,
+        publication_date=publication_date,
+        abstract=paper.abstract,
+        keywords=paper.keywords or [],
+        fingerprints=fingerprints,
+        provenance=provenance,
+    )
+    return output.model_dump(mode="json", exclude_none=True)
+
+
 def _serialize_chunk(chunk: Chunk) -> dict[str, Any]:
-    data = chunk.model_dump(mode="json")
-    data["citations"] = chunk.citations or extract_citations(chunk.content)
-    return data
+    """Legacy serialization - now delegates to output format."""
+    return _serialize_chunk_output(chunk)
 
 
 def _serialize_paper(
     conn: Connection, paper: Paper, *, include_chunks: bool = False
 ) -> dict[str, Any]:
+    """Serialize paper and related data to the new JSON schema format."""
     if paper.id is None:
         raise ValueError("Paper must have an id to serialize")
 
     authors = get_paper_authors(conn, paper.id)
-    sources = get_paper_sources(conn, paper.id)
-    files = get_paper_files(conn, paper.id)
-    tei_xml = _read_tei_xml(files)
-
-    payload: dict[str, Any] = {
-        "paper": paper.model_dump(mode="json"),
-        "authors": [author.model_dump(mode="json") for author in authors],
-        "sources": [source.model_dump(mode="json") for source in sources],
-        "files": [file.model_dump(mode="json") for file in files],
-        "tei_xml": tei_xml,
-    }
+    
+    # Build the paper record output
+    paper_record = _serialize_paper_record_output(paper, authors)
+    
+    payload: dict[str, Any] = paper_record
 
     if include_chunks:
         chunks = get_chunks_for_paper(conn, paper.id)
-        payload["chunks"] = [_serialize_chunk(chunk) for chunk in chunks]
+        payload["chunks"] = [_serialize_chunk_output(chunk) for chunk in chunks]
 
     return payload
 
@@ -73,16 +193,29 @@ def _serialize_paper(
 def _serialize_search_result(
     result: ChunkSearchResult, paper: dict[str, Any] | None
 ) -> dict[str, Any]:
+    """Serialize a search result to the PaperChunk JSON schema format."""
+    section_path = list(result.section_path) if result.section_path else ["body"]
+    
+    chunk_output = PaperChunkOutput(
+        chunk_id=result.chunk_id,
+        paper_id=result.paper_uuid,
+        kind=ChunkKind(result.kind),
+        position=result.position,
+        section_path=section_path,
+        section_title=result.section_title,
+        order_in_section=result.order_in_section,
+        text=TextOutput(
+            content=result.content,
+            language=result.language,
+        ),
+        citations=list(result.citations),
+    )
+    
+    chunk_dict = chunk_output.model_dump(mode="json", exclude_none=True)
+    chunk_dict["score"] = result.score  # Add score for search results
+    
     return {
-        "chunk": {
-            "id": result.chunk_id,
-            "paper_id": result.paper_id,
-            "chunk_order": result.chunk_order,
-            "section": result.section,
-            "content": result.content,
-            "score": result.score,
-            "citations": list(result.citations),
-        },
+        "chunk": chunk_dict,
         "paper": paper,
     }
 

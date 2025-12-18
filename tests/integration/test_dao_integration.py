@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import List
 
 import pytest
@@ -13,7 +13,7 @@ from retrieval.storage.dao import (
     upsert_paper_files,
 )
 from retrieval.storage.db import get_connection
-from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, PaperSource
+from retrieval.storage.models import Chunk, Paper, PaperAuthor, PaperFile, PaperSource, generate_paper_uuid, generate_chunk_id
 from retrieval.storage.migrations import run_migrations
 
 
@@ -26,15 +26,24 @@ def test_dao_crud_round_trip() -> None:
     run_migrations(dsn=dsn)
 
     with get_connection(dsn) as conn:
+        paper_uuid = generate_paper_uuid()
         new_paper = Paper(
+            paper_id=paper_uuid,
             title="Integration Testing in Retrieval Engines",
             abstract="Testing CRUD operations against Postgres",
             doi="10.1234/example",
             published_at=date(2024, 12, 31),
+            external_source="doi",
+            external_id="10.1234/example",
+            provenance_source="test",
+            parser_name="grobid",
+            parser_version="0.8.0",
+            ingested_at=datetime.now(timezone.utc),
         )
         persisted_paper = upsert_paper(conn, new_paper)
         assert persisted_paper.id is not None
         assert persisted_paper.created_at is not None
+        assert persisted_paper.paper_id == paper_uuid
 
         updated_paper = upsert_paper(
             conn,
@@ -101,8 +110,26 @@ def test_dao_crud_round_trip() -> None:
         assert persisted_source.metadata == {"ingested_by": "integration-test"}
 
         to_insert = [
-            Chunk(paper_id=updated_paper.id, chunk_order=0, content="chunk 0"),
-            Chunk(paper_id=updated_paper.id, chunk_order=1, content="chunk 1"),
+            Chunk(
+                chunk_id=generate_chunk_id(paper_uuid, 0),
+                paper_id=updated_paper.id,
+                paper_uuid=paper_uuid,
+                kind="section_paragraph",
+                position=0,
+                section_path=["Introduction"],
+                section_title="Introduction",
+                content="chunk 0",
+            ),
+            Chunk(
+                chunk_id=generate_chunk_id(paper_uuid, 1),
+                paper_id=updated_paper.id,
+                paper_uuid=paper_uuid,
+                kind="section_paragraph",
+                position=1,
+                section_path=["Methods"],
+                section_title="Methods",
+                content="chunk 1",
+            ),
         ]
         inserted_chunks = insert_chunks(conn, to_insert)
         chunk_ids = [chunk.id for chunk in inserted_chunks]
@@ -110,4 +137,4 @@ def test_dao_crud_round_trip() -> None:
 
         fetched_chunks = get_chunks_by_ids(conn, list(reversed(chunk_ids)))
         assert [chunk.content for chunk in fetched_chunks] == ["chunk 0", "chunk 1"]
-        assert fetched_chunks[0].chunk_order == 0
+        assert fetched_chunks[0].position == 0

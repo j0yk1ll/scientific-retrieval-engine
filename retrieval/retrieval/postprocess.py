@@ -23,7 +23,7 @@ def filter_min_score(
 def deduplicate_chunks(results: Iterable[ChunkSearchResult]) -> list[ChunkSearchResult]:
     """Remove duplicate chunk identifiers while preserving order."""
 
-    seen: set[int] = set()
+    seen: set[str] = set()
     unique: list[ChunkSearchResult] = []
     for result in results:
         if result.chunk_id in seen:

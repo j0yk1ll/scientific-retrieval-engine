@@ -21,6 +21,7 @@ from retrieval.index import ChromaIndex
 from retrieval.parsing.citations import extract_citations
 from retrieval.parsing.grobid_client import GrobidClient
 from retrieval.parsing.tei_chunker import TEIChunk, TEIChunker
+from retrieval.parsing.tei_header import extract_tei_metadata, TEIMetadata
 from retrieval.retrieval.postprocess import postprocess_results
 from retrieval.retrieval.types import ChunkSearchResult, EvidenceBundle
 from retrieval.storage.dao import (
@@ -107,7 +108,12 @@ class RetrievalEngine:
 
             tei_xml = self.parse_document(pdf_disk_path)
 
-            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            # Update paper metadata with values extracted from GROBID TEI output
+            paper = self._update_paper_from_tei(
+                conn, paper=paper, tei_xml=tei_xml, override_existing=False
+            )
+
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, paper_uuid=paper.paper_id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
             self._cleanup_downloaded_pdf(
@@ -239,7 +245,12 @@ class RetrievalEngine:
 
             tei_xml = self.parse_document(pdf_disk_path)
 
-            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            # Update paper metadata with values extracted from GROBID TEI output
+            paper = self._update_paper_from_tei(
+                conn, paper=paper, tei_xml=tei_xml, override_existing=False
+            )
+
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, paper_uuid=paper.paper_id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
             self._cleanup_downloaded_pdf(
@@ -280,6 +291,7 @@ class RetrievalEngine:
         The caller may optionally provide metadata. If ``title`` is not given, a
         best-effort title will be derived from the URL path.
         """
+        import re
 
         normalized_url = (pdf_url or "").strip()
         if not normalized_url:
@@ -290,6 +302,14 @@ class RetrievalEngine:
             parsed = urlparse(normalized_url)
             fallback_title = Path(parsed.path).stem
             resolved_title = fallback_title or normalized_url
+
+        # Extract arXiv ID from URL if present
+        external_source: str | None = None
+        external_id: str | None = None
+        arxiv_match = re.search(r'arxiv\.org/(?:abs|pdf)/(\d{4}\.\d+)', normalized_url, re.IGNORECASE)
+        if arxiv_match:
+            external_source = "arxiv"
+            external_id = arxiv_match.group(1)
 
         conn = get_connection(self.config.db_dsn)
         paper: Paper | None = None
@@ -302,6 +322,8 @@ class RetrievalEngine:
                 doi=doi,
                 published_at=published_at,
                 authors=authors,
+                external_source=external_source,
+                external_id=external_id,
             )
             self._record_source(
                 conn,
@@ -325,7 +347,12 @@ class RetrievalEngine:
 
             tei_xml = self.parse_document(pdf_disk_path)
 
-            chunks = self._chunk_and_store(conn, paper_id=paper.id, tei_xml=tei_xml)
+            # Update paper metadata with values extracted from GROBID TEI output
+            paper = self._update_paper_from_tei(
+                conn, paper=paper, tei_xml=tei_xml, override_existing=False
+            )
+
+            chunks = self._chunk_and_store(conn, paper_id=paper.id, paper_uuid=paper.paper_id, tei_xml=tei_xml)
             self._index_chunks(chunks)
 
             self._cleanup_downloaded_pdf(
@@ -429,19 +456,24 @@ class RetrievalEngine:
 
         chunk_map = {chunk.id: chunk for chunk in chunk_models if chunk.id is not None}
         results: list[ChunkSearchResult] = []
-        for chunk_id in chunk_ids:
-            chunk = chunk_map.get(chunk_id)
+        for db_id in chunk_ids:
+            chunk = chunk_map.get(db_id)
             if chunk is None:
                 continue
             results.append(
                 ChunkSearchResult(
-                    chunk_id=chunk_id,
+                    chunk_id=chunk.chunk_id,
+                    db_id=db_id,
                     paper_id=chunk.paper_id,
-                    chunk_order=chunk.chunk_order,
-                    section=chunk.section,
+                    paper_uuid=chunk.paper_uuid,
+                    kind=chunk.kind,
+                    position=chunk.position,
+                    section_title=chunk.section_title,
+                    order_in_section=chunk.order_in_section,
                     content=chunk.content,
-                    score=scores.get(chunk_id, 0.0),
+                    score=scores.get(db_id, 0.0),
                     citations=tuple(chunk.citations or self._extract_citations(chunk.content)),
+                    language=chunk.language,
                 )
             )
 
@@ -488,8 +520,27 @@ class RetrievalEngine:
         doi: str | None,
         published_at: date | None,
         authors: Sequence[str] | None,
+        external_source: str | None = None,
+        external_id: str | None = None,
+        provenance_source: str = "ingestion",
     ) -> Paper:
-        paper = Paper(title=title, abstract=abstract, doi=doi, published_at=published_at)
+        from retrieval.storage.models import generate_paper_uuid
+        from datetime import datetime, timezone
+        
+        paper_uuid = generate_paper_uuid()
+        paper = Paper(
+            paper_id=paper_uuid,
+            title=title,
+            abstract=abstract,
+            doi=doi,
+            published_at=published_at,
+            external_source=external_source,
+            external_id=external_id,
+            provenance_source=provenance_source,
+            parser_name="grobid",
+            parser_version="0.8.0",  # TODO: Get from config or service
+            ingested_at=datetime.now(timezone.utc),
+        )
         persisted = upsert_paper(conn, paper)
 
         if authors:
@@ -522,6 +573,125 @@ class RetrievalEngine:
         )
         return insert_paper_source(conn, source)
 
+    def _update_paper_from_tei(
+        self,
+        conn,
+        *,
+        paper: Paper,
+        tei_xml: str,
+        override_existing: bool = False,
+    ) -> Paper:
+        """Update paper metadata using values extracted from GROBID TEI output.
+        
+        This method extracts title, abstract, authors, keywords, and DOI from the
+        parsed TEI document and updates the paper record. By default, it only fills
+        in missing values (override_existing=False). When override_existing is True,
+        it replaces existing values with those from the TEI.
+        
+        Args:
+            conn: Database connection.
+            paper: The paper model to update.
+            tei_xml: GROBID-generated TEI XML content.
+            override_existing: If True, replace existing metadata with TEI values.
+            
+        Returns:
+            The updated Paper model.
+        """
+        tei_meta = extract_tei_metadata(tei_xml)
+        
+        updated_title = paper.title
+        updated_abstract = paper.abstract
+        updated_doi = paper.doi
+        updated_keywords = paper.keywords
+        
+        # Update title if missing or if override is enabled
+        if tei_meta.title:
+            if override_existing or not paper.title or self._is_placeholder_title(paper.title):
+                updated_title = tei_meta.title
+        
+        # Update abstract if missing or if override is enabled
+        if tei_meta.abstract:
+            if override_existing or not paper.abstract:
+                updated_abstract = tei_meta.abstract
+        
+        # Update DOI if missing or if override is enabled
+        if tei_meta.doi:
+            if override_existing or not paper.doi:
+                updated_doi = tei_meta.doi
+        
+        # Update keywords if missing or if override is enabled
+        if tei_meta.keywords:
+            if override_existing or not paper.keywords:
+                updated_keywords = tei_meta.keywords
+        
+        # Create updated paper model
+        updated_paper = Paper(
+            id=paper.id,
+            paper_id=paper.paper_id,
+            title=updated_title,
+            abstract=updated_abstract,
+            doi=updated_doi,
+            published_at=paper.published_at,
+            external_source=paper.external_source,
+            external_id=paper.external_id,
+            venue_name=paper.venue_name,
+            venue_type=paper.venue_type,
+            venue_publisher=paper.venue_publisher,
+            keywords=updated_keywords,
+            content_hash=paper.content_hash,
+            pdf_sha256=paper.pdf_sha256,
+            provenance_source=paper.provenance_source,
+            parser_name=paper.parser_name,
+            parser_version=paper.parser_version,
+            parser_warnings=paper.parser_warnings,
+            ingested_at=paper.ingested_at,
+            created_at=paper.created_at,
+            updated_at=paper.updated_at,
+        )
+        
+        # Persist updated paper
+        persisted = upsert_paper(conn, updated_paper)
+        
+        # Update authors if we have new author data and either override is enabled or no existing authors
+        if tei_meta.authors:
+            existing_authors = self._get_paper_authors(conn, persisted.id)
+            if override_existing or not existing_authors:
+                author_models = [
+                    PaperAuthor(
+                        paper_id=persisted.id,
+                        author_name=author.name,
+                        author_order=idx + 1,
+                        orcid=author.orcid,
+                        affiliations=author.affiliations if author.affiliations else None,
+                    )
+                    for idx, author in enumerate(tei_meta.authors)
+                ]
+                replace_authors(conn, persisted.id, author_models)
+        
+        return persisted
+
+    def _is_placeholder_title(self, title: str) -> bool:
+        """Check if a title appears to be a placeholder (e.g., URL-derived filename)."""
+        import re
+        # Match patterns like "2512", "2512.12345", pure numbers, or very short non-word titles
+        if not title:
+            return True
+        # Check for arXiv-style IDs (e.g., "2512", "2512.12345")
+        if re.match(r'^\d{4}(\.\d+)?$', title):
+            return True
+        # Check for pure numbers
+        if title.isdigit():
+            return True
+        # Check for very short titles (less than 3 characters)
+        if len(title) < 3:
+            return True
+        return False
+
+    def _get_paper_authors(self, conn, paper_id: int) -> list[PaperAuthor]:
+        """Get authors for a paper."""
+        from retrieval.storage.dao import get_paper_authors
+        return list(get_paper_authors(conn, paper_id))
+
     def _resolve_full_text(self, *, doi: str | None, title: str) -> FullTextCandidate | None:
         unpaywall = self._unpaywall_client()
         matcher_clients = self._preprint_clients()
@@ -552,18 +722,26 @@ class RetrievalEngine:
         atomic_write_bytes(path, pdf_content)
         return path
 
-    def _chunk_and_store(self, conn, *, paper_id: int, tei_xml: str) -> list[Chunk]:
+    def _chunk_and_store(self, conn, *, paper_id: int, paper_uuid: str, tei_xml: str) -> list[Chunk]:
+        from retrieval.storage.models import generate_chunk_id
+        
         chunker = self._tei_chunker()
         tei_chunks: list[TEIChunk] = chunker.chunk(tei_xml)
         chunk_models = [
             Chunk(
+                chunk_id=generate_chunk_id(paper_uuid, chunk.position),
                 paper_id=paper_id,
-                chunk_order=index,
-                section=chunk.section,
+                paper_uuid=paper_uuid,
+                kind=chunk.kind,
+                position=chunk.position,
+                section_title=chunk.section_title,
+                order_in_section=chunk.order_in_section,
                 content=chunk.text,
                 citations=chunk.citations,
+                tei_id=chunk.tei_id,
+                tei_xpath=chunk.tei_xpath,
             )
-            for index, chunk in enumerate(tei_chunks)
+            for chunk in tei_chunks
         ]
         return insert_chunks(conn, chunk_models)
 

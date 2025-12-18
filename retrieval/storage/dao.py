@@ -32,42 +32,104 @@ def _serialize_metadata(metadata: dict | None) -> dict | None:
 def upsert_paper(conn: Connection, paper: Paper) -> Paper:
     """Insert or update a paper record and return the persisted model."""
 
-    insert_sql = (
-        """
-        INSERT INTO papers (title, abstract, doi, published_at)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id, title, abstract, doi, published_at, created_at, updated_at
-        """
-    )
-    upsert_sql = (
-        """
-        INSERT INTO papers (id, title, abstract, doi, published_at)
-        VALUES (%s, %s, %s, %s, %s)
+    paper_columns = """
+        id, paper_id, title, abstract, doi, published_at,
+        external_source, external_id, venue_name, venue_type, venue_publisher,
+        keywords, content_hash, pdf_sha256, provenance_source,
+        parser_name, parser_version, parser_warnings, ingested_at,
+        created_at, updated_at
+    """
+    
+    insert_sql = f"""
+        INSERT INTO papers (
+            paper_id, title, abstract, doi, published_at,
+            external_source, external_id, venue_name, venue_type, venue_publisher,
+            keywords, content_hash, pdf_sha256, provenance_source,
+            parser_name, parser_version, parser_warnings, ingested_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING {paper_columns}
+    """
+    
+    upsert_sql = f"""
+        INSERT INTO papers (
+            id, paper_id, title, abstract, doi, published_at,
+            external_source, external_id, venue_name, venue_type, venue_publisher,
+            keywords, content_hash, pdf_sha256, provenance_source,
+            parser_name, parser_version, parser_warnings, ingested_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id) DO UPDATE
-            SET title = EXCLUDED.title,
+            SET paper_id = EXCLUDED.paper_id,
+                title = EXCLUDED.title,
                 abstract = EXCLUDED.abstract,
                 doi = EXCLUDED.doi,
                 published_at = EXCLUDED.published_at,
+                external_source = EXCLUDED.external_source,
+                external_id = EXCLUDED.external_id,
+                venue_name = EXCLUDED.venue_name,
+                venue_type = EXCLUDED.venue_type,
+                venue_publisher = EXCLUDED.venue_publisher,
+                keywords = EXCLUDED.keywords,
+                content_hash = EXCLUDED.content_hash,
+                pdf_sha256 = EXCLUDED.pdf_sha256,
+                provenance_source = EXCLUDED.provenance_source,
+                parser_name = EXCLUDED.parser_name,
+                parser_version = EXCLUDED.parser_version,
+                parser_warnings = EXCLUDED.parser_warnings,
+                ingested_at = EXCLUDED.ingested_at,
                 updated_at = now()
-        RETURNING id, title, abstract, doi, published_at, created_at, updated_at
-        """
-    )
+        RETURNING {paper_columns}
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         if paper.id is None:
             cur.execute(
                 insert_sql,
-                (paper.title, paper.abstract, paper.doi, paper.published_at),
+                (
+                    paper.paper_id,
+                    paper.title,
+                    paper.abstract,
+                    paper.doi,
+                    paper.published_at,
+                    paper.external_source,
+                    paper.external_id,
+                    paper.venue_name,
+                    paper.venue_type,
+                    paper.venue_publisher,
+                    Json(paper.keywords),
+                    paper.content_hash,
+                    paper.pdf_sha256,
+                    paper.provenance_source,
+                    paper.parser_name,
+                    paper.parser_version,
+                    Json(paper.parser_warnings),
+                    paper.ingested_at,
+                ),
             )
         else:
             cur.execute(
                 upsert_sql,
                 (
                     paper.id,
+                    paper.paper_id,
                     paper.title,
                     paper.abstract,
                     paper.doi,
                     paper.published_at,
+                    paper.external_source,
+                    paper.external_id,
+                    paper.venue_name,
+                    paper.venue_type,
+                    paper.venue_publisher,
+                    Json(paper.keywords),
+                    paper.content_hash,
+                    paper.pdf_sha256,
+                    paper.provenance_source,
+                    paper.parser_name,
+                    paper.parser_version,
+                    Json(paper.parser_warnings),
+                    paper.ingested_at,
                 ),
             )
         row = cur.fetchone()
@@ -81,9 +143,9 @@ def replace_authors(conn: Connection, paper_id: int, authors: Sequence[PaperAuth
     delete_sql = "DELETE FROM paper_authors WHERE paper_id = %s"
     insert_sql = (
         """
-        INSERT INTO paper_authors (paper_id, author_name, author_order, affiliation)
-        VALUES (%s, %s, %s, %s)
-        RETURNING id, paper_id, author_name, author_order, affiliation, created_at
+        INSERT INTO paper_authors (paper_id, author_name, author_order, orcid, affiliations)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id, paper_id, author_name, author_order, orcid, affiliations, created_at
         """
     )
 
@@ -97,7 +159,8 @@ def replace_authors(conn: Connection, paper_id: int, authors: Sequence[PaperAuth
                         paper_id,
                         author.author_name,
                         author.author_order,
-                        author.affiliation,
+                        author.orcid,
+                        Json(author.affiliations),
                     ),
                 )
                 inserted.append(PaperAuthor.model_validate(cur.fetchone()))
@@ -109,7 +172,7 @@ def get_paper_authors(conn: Connection, paper_id: int) -> list[PaperAuthor]:
 
     sql = (
         """
-        SELECT id, paper_id, author_name, author_order, affiliation, created_at
+        SELECT id, paper_id, author_name, author_order, orcid, affiliations, created_at
         FROM paper_authors
         WHERE paper_id = %s
         ORDER BY author_order, id
@@ -227,14 +290,22 @@ def get_paper_sources(conn: Connection, paper_id: int) -> list[PaperSource]:
 def insert_chunks(conn: Connection, chunks: Iterable[Chunk]) -> list[Chunk]:
     """Insert a collection of chunks and return them with generated identifiers."""
 
+    chunk_columns = """
+        id, chunk_id, paper_id, paper_uuid, kind, position, section_title,
+        order_in_section, content, language, citations, pdf_page_start, pdf_page_end,
+        pdf_bbox, tei_id, tei_xpath, char_start, char_end, created_at
+    """
+    
     inserted: list[Chunk] = []
-    sql = (
-        """
-        INSERT INTO chunks (paper_id, chunk_order, section, content, citations)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING id, paper_id, chunk_order, section, content, citations, created_at
-        """
-    )
+    sql = f"""
+        INSERT INTO chunks (
+            chunk_id, paper_id, paper_uuid, kind, position, section_title,
+            order_in_section, content, language, citations, pdf_page_start, pdf_page_end,
+            pdf_bbox, tei_id, tei_xpath, char_start, char_end
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING {chunk_columns}
+    """
 
     with conn.transaction():
         with conn.cursor(row_factory=dict_row) as cur:
@@ -242,11 +313,23 @@ def insert_chunks(conn: Connection, chunks: Iterable[Chunk]) -> list[Chunk]:
                 cur.execute(
                     sql,
                     (
+                        chunk.chunk_id,
                         chunk.paper_id,
-                        chunk.chunk_order,
-                        chunk.section,
+                        chunk.paper_uuid,
+                        chunk.kind,
+                        chunk.position,
+                        chunk.section_title,
+                        chunk.order_in_section,
                         chunk.content,
-                        chunk.citations,
+                        chunk.language,
+                        Json(chunk.citations),
+                        chunk.pdf_page_start,
+                        chunk.pdf_page_end,
+                        Json(chunk.pdf_bbox) if chunk.pdf_bbox else None,
+                        chunk.tei_id,
+                        chunk.tei_xpath,
+                        chunk.char_start,
+                        chunk.char_end,
                     ),
                 )
                 inserted.append(Chunk.model_validate(cur.fetchone()))
@@ -254,19 +337,19 @@ def insert_chunks(conn: Connection, chunks: Iterable[Chunk]) -> list[Chunk]:
 
 
 def get_chunks_by_ids(conn: Connection, chunk_ids: Sequence[int]) -> list[Chunk]:
-    """Fetch chunks by their identifiers ordered deterministically by ``chunk_order``."""
+    """Fetch chunks by their identifiers ordered deterministically by ``position``."""
 
     if not chunk_ids:
         return []
 
-    sql = (
-        """
-        SELECT id, paper_id, chunk_order, section, content, citations, created_at
+    sql = """
+        SELECT id, chunk_id, paper_id, paper_uuid, kind, position, section_title,
+               order_in_section, content, language, citations, pdf_page_start, pdf_page_end,
+               pdf_bbox, tei_id, tei_xpath, char_start, char_end, created_at
         FROM chunks
         WHERE id = ANY(%s)
-        ORDER BY chunk_order, id
-        """
-    )
+        ORDER BY position, id
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, (list(chunk_ids),))
@@ -280,13 +363,15 @@ def get_papers_by_ids(conn: Connection, paper_ids: Sequence[int]) -> list[Paper]
     if not paper_ids:
         return []
 
-    sql = (
-        """
-        SELECT id, title, abstract, doi, published_at, created_at, updated_at
+    sql = """
+        SELECT id, paper_id, title, abstract, doi, published_at,
+               external_source, external_id, venue_name, venue_type, venue_publisher,
+               keywords, content_hash, pdf_sha256, provenance_source,
+               parser_name, parser_version, parser_warnings, ingested_at,
+               created_at, updated_at
         FROM papers
         WHERE id = ANY(%s)
-        """
-    )
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, (list(paper_ids),))
@@ -297,13 +382,13 @@ def get_papers_by_ids(conn: Connection, paper_ids: Sequence[int]) -> list[Paper]
 def get_all_chunks(conn: Connection) -> list[Chunk]:
     """Fetch all chunks in the database ordered by ``id``."""
 
-    sql = (
-        """
-        SELECT id, paper_id, chunk_order, section, content, citations, created_at
+    sql = """
+        SELECT id, chunk_id, paper_id, paper_uuid, kind, position, section_title,
+               order_in_section, content, language, citations, pdf_page_start, pdf_page_end,
+               pdf_bbox, tei_id, tei_xpath, char_start, char_end, created_at
         FROM chunks
         ORDER BY id
-        """
-    )
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql)
@@ -314,13 +399,15 @@ def get_all_chunks(conn: Connection) -> list[Chunk]:
 def get_all_papers(conn: Connection) -> list[Paper]:
     """Fetch all papers ordered by creation time descending."""
 
-    sql = (
-        """
-        SELECT id, title, abstract, doi, published_at, created_at, updated_at
+    sql = """
+        SELECT id, paper_id, title, abstract, doi, published_at,
+               external_source, external_id, venue_name, venue_type, venue_publisher,
+               keywords, content_hash, pdf_sha256, provenance_source,
+               parser_name, parser_version, parser_warnings, ingested_at,
+               created_at, updated_at
         FROM papers
         ORDER BY created_at DESC, id DESC
-        """
-    )
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql)
@@ -331,14 +418,14 @@ def get_all_papers(conn: Connection) -> list[Paper]:
 def get_chunks_for_paper(conn: Connection, paper_id: int) -> list[Chunk]:
     """Fetch all chunks for a paper ordered by chunk sequence."""
 
-    sql = (
-        """
-        SELECT id, paper_id, chunk_order, section, content, citations, created_at
+    sql = """
+        SELECT id, chunk_id, paper_id, paper_uuid, kind, position, section_title,
+               order_in_section, content, language, citations, pdf_page_start, pdf_page_end,
+               pdf_bbox, tei_id, tei_xpath, char_start, char_end, created_at
         FROM chunks
         WHERE paper_id = %s
-        ORDER BY chunk_order, id
-        """
-    )
+        ORDER BY position, id
+    """
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, (paper_id,))
