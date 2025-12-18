@@ -6,7 +6,13 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class Paper:
-    """Normalized representation of a paper returned by any search service."""
+    """Normalized representation of a paper returned by any search service.
+
+    ``source`` records the upstream provider that produced this specific record
+    (e.g., ``"crossref"`` or ``"openalex"``). When multiple records are merged,
+    ``primary_source`` reflects the provider whose metadata won the merge and is
+    duplicated into ``source`` to preserve compatibility with existing callers.
+    """
 
     paper_id: str
     title: str

@@ -21,7 +21,8 @@ class PaperSearchService:
     """Aggregate paper search across OpenAlex and Semantic Scholar.
 
     The service resolves papers only by DOI or title and intentionally avoids
-    URL-based lookups or preprint-specific logic.
+    URL-based lookups. Missing DOIs are upgraded through Crossref/DataCite title
+    resolution when possible so merged results favor canonical identifiers.
     """
 
     def __init__(

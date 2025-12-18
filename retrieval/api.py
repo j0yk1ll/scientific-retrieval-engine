@@ -1,3 +1,23 @@
+"""High-level retrieval API constrained to DOI and title inputs.
+
+This module exposes the :class:`RetrievalClient` facade and the functional
+helpers defined in :mod:`retrieval.__init__`. Inputs are limited to DOIs and
+title-like queries; the client intentionally avoids arbitrary URL lookups or
+other identifier types so downstream services remain focused on curated
+bibliographic metadata.
+
+Example: lookup by DOI
+----------------------
+```python
+from retrieval.api import RetrievalClient
+
+client = RetrievalClient()
+papers = client.search_paper_by_doi("10.5555/example.doi")
+for paper in papers:
+    print(paper.title, paper.doi, paper.source)
+```
+"""
+
 from __future__ import annotations
 
 from typing import List, Optional
@@ -29,8 +49,9 @@ class RetrievalClient:
     """Facade around search and citation workflows with configurable settings.
 
     The public contract is intentionally narrow: inputs are limited to DOIs and
-    titles. Arbitrary URL lookups, direct server scraping, and preprint-server
-    (e.g., arXiv) requests are not part of the supported pipeline.
+    titles. Arbitrary URL lookups and direct server scraping are not part of the
+    supported pipeline so that queries stay aligned with upstream metadata
+    providers.
     """
 
     def __init__(
@@ -131,7 +152,8 @@ class RetrievalClient:
     ) -> List[Paper]:
         """Search OpenAlex and Semantic Scholar for papers matching a title-like ``query``.
 
-        Queries are treated as bibliographic text; URL-based lookups are out of scope.
+        Queries are treated as bibliographic text; URL-based lookups are out of scope
+        to keep inputs aligned with DOI/title-centric workflows.
         """
 
         papers = self._search_service.search(query, k=k, min_year=min_year, max_year=max_year)
@@ -154,7 +176,7 @@ class RetrievalClient:
     def search_paper_by_title(self, title: str) -> List[Paper]:
         """Search for a paper by title.
 
-        Preprint lookups and URL parsing are deliberately excluded.
+        URL parsing and non-bibliographic identifiers are deliberately excluded.
         """
 
         papers = self._search_service.search_by_title(title)

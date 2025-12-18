@@ -31,6 +31,57 @@ Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, U
 - The pipeline queries curated metadata services only; it does **not** scrape source servers directly.
 - Preprint servers (e.g., arXiv) are out of scope and are not consulted by any workflow.
 
+### DOI lookups
+
+DOI inputs are resolved across Crossref, DataCite, OpenAlex, and Semantic Scholar.
+Results are merged to prefer canonical identifiers while preserving the originating
+source on each :class:`retrieval.models.Paper` instance via ``paper.source`` and
+``paper.primary_source``.
+
+```python
+from retrieval import search_paper_by_doi
+
+papers = search_paper_by_doi("10.5555/example.doi")
+for paper in papers:
+    print(paper.title, paper.doi, paper.source)
+```
+
+### Title → DOI resolution
+
+Title searches first query OpenAlex and Semantic Scholar. When results are missing
+DOIs, the pipeline attempts to resolve them through Crossref and DataCite using
+token similarity and (when available) overlapping author names.
+
+```python
+from retrieval import search_paper_by_title
+
+papers = search_paper_by_title("Attention is all you need")
+print(papers[0].doi)  # May be upgraded via Crossref/DataCite
+```
+
+### GROBID ingestion + hybrid search
+
+GROBID TEI output can be chunked and indexed for lexical + vector retrieval:
+
+```python
+from retrieval.chunking import GrobidChunker
+from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+
+tei_xml = "<TEI>...</TEI>"  # GROBID response
+chunks = GrobidChunker("demo-paper", tei_xml).chunk(max_tokens=400)
+
+bm25 = BM25Index()
+
+class StaticEmbedder:
+    def embed(self, texts):
+        return [[0.0] * 8 for _ in texts]
+
+vector = FaissVectorIndex(StaticEmbedder())
+retriever = HybridRetriever(bm25, vector)
+retriever.index_chunks(Chunk.from_grobid(chunk) for chunk in chunks)
+results = retriever.search("introduction")
+```
+
 ## Requirements
 
 - Python 3.11
