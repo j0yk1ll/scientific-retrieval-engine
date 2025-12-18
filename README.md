@@ -27,7 +27,7 @@ Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, U
 
 ### Supported inputs and scope
 
-- Inputs must be either a DOI or a title. URL-based lookups and parsing are intentionally unsupported.
+- Inputs must be either a DOI or a title. URL-based lookups, arbitrary URLs, and other identifiers (e.g., arXiv, ISBN, PubMed) are intentionally unsupported.
 - The pipeline queries curated metadata services only; it does **not** scrape source servers directly.
 - Preprint servers (e.g., arXiv) are out of scope and are not consulted by any workflow.
 
@@ -80,6 +80,81 @@ vector = FaissVectorIndex(StaticEmbedder())
 retriever = HybridRetriever(bm25, vector)
 retriever.index_chunks(Chunk.from_grobid(chunk) for chunk in chunks)
 results = retriever.search("introduction")
+```
+
+### Cached ingestion pipeline
+
+Use the built-in file cache to avoid re-processing PDFs when building hybrid retrievers:
+
+```python
+from pathlib import Path
+
+from retrieval.api import RetrievalClient
+from retrieval.cache import CachedPaperPipeline, DoiFileCache
+from retrieval.clients.grobid import GrobidClient
+from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever
+
+class StaticEmbedder:
+    def embed(self, texts):
+        return [[0.0] * 8 for _ in texts]
+
+# Set up cache + ingestion pipeline
+cache = DoiFileCache(base_dir=Path(".cache/papers"))
+client = RetrievalClient()
+pipeline = CachedPaperPipeline(
+    cache=cache,
+    retrieval_client=client,
+    grobid_client=GrobidClient("http://localhost:8070"),
+    embedder=StaticEmbedder(),
+)
+
+artifacts = pipeline.ingest("10.5555/example.doi", pdf=Path("paper.pdf"))
+
+bm25 = BM25Index()
+vector = FaissVectorIndex(pipeline.embedder)
+retriever = HybridRetriever(bm25, vector)
+retriever.index_chunks(artifacts.chunks, embeddings=artifacts.embeddings)
+results = retriever.search("discussion of methods")
+```
+
+### Hybrid retrieval example
+
+Combine lexical and vector search across any chunk collection:
+
+```python
+from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+
+chunks = [
+    Chunk(text="Transformer models excel at sequence tasks"),
+    Chunk(text="Graph neural networks capture relational structure"),
+]
+
+class StaticEmbedder:
+    def embed(self, texts):
+        return [[0.1, 0.2] for _ in texts]
+
+bm25 = BM25Index()
+vector = FaissVectorIndex(StaticEmbedder())
+retriever = HybridRetriever(bm25, vector)
+retriever.index_chunks(chunks)
+
+for hit in retriever.search("sequence modeling"):
+    print(hit.chunk.text, hit.score)
+```
+
+### Unpaywall configuration example
+
+Unpaywall is opt-in and requires a contact email. Enable it via settings (or environment variables loaded with ``load_dotenv_from_root``):
+
+```python
+from retrieval.api import RetrievalClient
+from retrieval.settings import RetrievalSettings
+
+settings = RetrievalSettings(enable_unpaywall=True, unpaywall_email="you@example.com")
+client = RetrievalClient(settings=settings)
+
+# Unpaywall will be used automatically during DOI lookups to attach open-access links
+papers = client.search_paper_by_doi("10.5555/example.doi")
 ```
 
 ## Requirements
