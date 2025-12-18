@@ -127,8 +127,10 @@ class RetrievalClient:
         if unpaywall_client is not None:
             self._unpaywall_client = unpaywall_client
         elif self.settings.enable_unpaywall:
+            if not self.settings.unpaywall_email:
+                raise ValueError("Unpaywall email is required when enable_unpaywall is True")
             self._unpaywall_client = UnpaywallClient(
-                self.settings.unpaywall_email or "",
+                self.settings.unpaywall_email,
                 session=self.session,
                 base_url=self.settings.unpaywall_base_url,
                 timeout=self.settings.timeout,
