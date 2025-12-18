@@ -17,12 +17,32 @@ class SessionIndex:
         self.papers.clear()
         self.evidence.clear()
 
+    def _make_key(self, paper: Paper) -> Optional[str]:
+        if paper.doi:
+            return f"doi:{paper.doi}"
+
+        if paper.paper_id and paper.source:
+            return f"{paper.source}:{paper.paper_id}"
+
+        return None
+
     def add_papers(self, items: List[Paper]) -> None:
         for paper in items:
-            key = paper.doi or paper.paper_id or paper.title
+            key = self._make_key(paper)
             if not key:
                 continue
             self.papers[key] = paper
 
+            if paper.doi:
+                # Preserve compatibility for callers that use raw DOIs as keys.
+                self.papers[paper.doi] = paper
+
     def get_paper(self, paper_id: str) -> Optional[Paper]:
-        return self.papers.get(paper_id)
+        paper = self.papers.get(paper_id)
+        if paper:
+            return paper
+
+        if paper_id and not paper_id.startswith("doi:"):
+            return self.papers.get(f"doi:{paper_id}")
+
+        return None
