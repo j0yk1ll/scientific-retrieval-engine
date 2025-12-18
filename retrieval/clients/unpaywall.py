@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import List, Optional
 
-import requests
-
+from retrieval.clients.base import BaseHttpClient, ClientError, NotFoundError
 from retrieval.identifiers import normalize_doi
 
 
@@ -56,7 +55,7 @@ class FullTextCandidate:
     metadata: Optional[dict] = None
 
 
-class UnpaywallClient:
+class UnpaywallClient(BaseHttpClient):
     """Minimal Unpaywall client focused on PDF resolution."""
 
     BASE_URL = "https://api.unpaywall.org/v2"
@@ -65,7 +64,7 @@ class UnpaywallClient:
         self,
         email: str,
         *,
-        session: Optional[requests.Session] = None,
+        session=None,
         base_url: Optional[str] = None,
         timeout: float = 10.0,
     ) -> None:
@@ -73,20 +72,19 @@ class UnpaywallClient:
             raise ValueError("A valid contact email is required for Unpaywall requests")
 
         self.email = email
-        self.base_url = base_url or self.BASE_URL
-        self.session = session or requests.Session()
-        self.timeout = timeout
+        super().__init__(session=session, base_url=base_url, timeout=timeout)
 
-    def get_record(self, doi: str) -> UnpaywallRecord:
+    def get_record(self, doi: str) -> Optional[UnpaywallRecord]:
         """Fetch and parse an Unpaywall record for the given DOI."""
 
         normalized_doi = normalize_doi(doi)
         if not normalized_doi:
             raise ValueError("DOI is required for Unpaywall requests")
 
-        url = f"{self.base_url}/{normalized_doi}"
-        response = self.session.get(url, params={"email": self.email}, timeout=self.timeout)
-        response.raise_for_status()
+        try:
+            response = self._request("GET", f"/{normalized_doi}", params={"email": self.email})
+        except NotFoundError:
+            return None
         payload = response.json()
         return self._parse_record(payload)
 
@@ -136,7 +134,7 @@ def resolve_full_text(
 
     try:
         record = unpaywall_client.get_record(doi)
-    except requests.RequestException:
+    except ClientError:
         record = None
 
     if record and record.best_pdf_url:

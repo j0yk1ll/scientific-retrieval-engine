@@ -5,9 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import requests
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-
+from retrieval.clients.base import BaseHttpClient, NotFoundError
 from retrieval.identifiers import normalize_doi
 
 
@@ -26,38 +24,18 @@ class OpenAlexWork:
     referenced_works: List[str]
 
 
-class OpenAlexClient:
+class OpenAlexClient(BaseHttpClient):
     """Lightweight wrapper around the OpenAlex Works API."""
 
     BASE_URL = "https://api.openalex.org"
 
-    def __init__(
-        self,
-        *,
-        session: Optional[requests.Session] = None,
-        base_url: str | None = None,
-        timeout: float = 10.0,
-    ) -> None:
-        self.session = session or requests.Session()
-        self.base_url = base_url or self.BASE_URL
-        self.timeout = timeout
-
-    @retry(
-        reraise=True,
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=0.5, min=0.5, max=4),
-        retry=retry_if_exception_type(requests.RequestException),
-    )
-    def _request(self, method: str, path: str, params: Optional[Dict[str, Any]] = None) -> requests.Response:
-        url = f"{self.base_url}{path}"
-        response = self.session.request(method, url, params=params, timeout=self.timeout)
-        response.raise_for_status()
-        return response
-
-    def get_work(self, openalex_work_id: str) -> OpenAlexWork:
+    def get_work(self, openalex_work_id: str) -> Optional[OpenAlexWork]:
         """Fetch a single work by its OpenAlex identifier."""
 
-        response = self._request("GET", f"/works/{openalex_work_id}")
+        try:
+            response = self._request("GET", f"/works/{openalex_work_id}")
+        except NotFoundError:
+            return None
         payload = response.json()
         return self._normalize_work(payload)
 
