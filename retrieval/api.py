@@ -4,12 +4,16 @@ from typing import List, Optional
 
 import requests
 
+from .clients.crossref import CrossrefClient
 from .clients.openalex import OpenAlexClient
 from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .clients.semanticscholar import SemanticScholarClient
 from .models import Citation, Paper
+from .services.crossref_service import CrossrefService
+from .services.doi_resolver_service import DoiResolverService
 from .services.opencitations_service import OpenCitationsService
 from .services.paper_enrichment_service import PaperEnrichmentService
+from .services.paper_merge_service import PaperMergeService
 from .services.search_service import PaperSearchService
 from .services.openalex_service import OpenAlexService
 from .services.semanticscholar_service import SemanticScholarService
@@ -50,6 +54,14 @@ class RetrievalClient:
         )
         openalex_service = OpenAlexService(openalex_client)
 
+        crossref_client = CrossrefClient(
+            session=self.session,
+            timeout=self.settings.timeout,
+            base_url=self.settings.crossref_base_url,
+        )
+        crossref_service = CrossrefService(crossref_client)
+        doi_resolver = DoiResolverService(crossref=crossref_service)
+
         semanticscholar_client = SemanticScholarClient(
             session=self.session,
             base_url=self.settings.semanticscholar_base_url,
@@ -57,9 +69,16 @@ class RetrievalClient:
         )
         semanticscholar_service = SemanticScholarService(semanticscholar_client)
 
+        merge_service = PaperMergeService(
+            source_priority=["crossref", "openalex", "semanticscholar"]
+        )
+
         self._search_service = search_service or PaperSearchService(
             openalex=openalex_service,
             semanticscholar=semanticscholar_service,
+            crossref=crossref_service,
+            doi_resolver=doi_resolver,
+            merge_service=merge_service,
         )
 
         self._opencitations_service = opencitations_service or OpenCitationsService(
