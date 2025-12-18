@@ -7,9 +7,6 @@ from typing import List, Optional, Sequence
 
 import requests
 
-from .title_match import TitleMatcher
-from .preprints.base import BasePreprintClient, PreprintResult
-
 
 @dataclass
 class OpenAccessLocation:
@@ -123,8 +120,6 @@ def resolve_full_text(
     doi: str,
     title: str,
     unpaywall_client: UnpaywallClient,
-    preprint_clients: Sequence[BasePreprintClient],
-    matcher: Optional[TitleMatcher] = None,
 ) -> Optional[FullTextCandidate]:
     """Resolve full text via Unpaywall, then fallback to preprints by title.
 
@@ -132,8 +127,6 @@ def resolve_full_text(
     :class:`TitleMatcher` to pick the most plausible preprint when Unpaywall does
     not yield a PDF URL.
     """
-
-    matcher = matcher or TitleMatcher()
 
     try:
         record = unpaywall_client.get_record(doi)
@@ -146,22 +139,6 @@ def resolve_full_text(
             url=record.best_pdf_url,
             pdf_url=record.best_pdf_url,
             metadata={"doi": record.doi, "title": record.title},
-        )
-
-    preprint_results: list[PreprintResult] = []
-    for client in preprint_clients:
-        try:
-            preprint_results.extend(client.search(title))
-        except requests.RequestException:
-            continue
-
-    best_match = matcher.pick_best(title, preprint_results)
-    if best_match:
-        return FullTextCandidate(
-            source=best_match.provider,
-            url=best_match.pdf_url or best_match.url,
-            pdf_url=best_match.pdf_url or best_match.url,
-            metadata={"title": best_match.title},
         )
 
     return None

@@ -1,15 +1,10 @@
-.PHONY: help up down logs migrate test test-e2e lint typecheck install install-dev clean reset-db
+.PHONY: help up down test test-e2e lint typecheck install install-dev clean
 
 # Default target
 help:
 	@echo "Available targets:"
 	@echo "  up                - Start Docker services (Postgres + GROBID)"
 	@echo "  down              - Stop Docker services"
-	@echo "  logs              - Tail Docker service logs"
-	@echo "  migrate           - Run database migrations to latest"
-	@echo "  migrate-downgrade - Rollback last migration"
-	@echo "  migrate-history   - Show migration history"
-	@echo "  migrate-current   - Show current migration version"
 	@echo "  test              - Run all tests"
 	@echo "  test-e2e          - Run E2E tests (requires Docker services)"
 	@echo "  lint              - Run ruff linter"
@@ -31,40 +26,6 @@ down:
 
 logs:
 	docker compose logs -f
-
-# Database
-migrate:
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-		uv run alembic upgrade head
-
-migrate-downgrade:
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-		uv run alembic downgrade -1
-
-migrate-history:
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-		uv run alembic history
-
-migrate-current:
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-		uv run alembic current
-
-# Reset local database: stop/start Postgres, recreate DB, run migrations
-reset-db:
-	@echo "Resetting local Postgres database..."
-	@echo "Stopping Postgres container if running"
-	-docker compose stop postgres
-	@echo "Starting Postgres container"
-	docker compose up -d postgres
-	@echo "Waiting for Postgres container to report healthy..."
-	@timeout 120 sh -c "until [ \"\$$(docker inspect -f '{{.State.Health.Status}}' retrieval-postgres 2>/dev/null)\" = \"healthy\" ]; do sleep 1; done" || \
-		(echo "Postgres did not become healthy in time" && exit 1)
-	@echo "Dropping and recreating 'retrieval' database inside Postgres container"
-	docker exec -i retrieval-postgres psql -U retrieval -d postgres -c "DROP DATABASE IF EXISTS retrieval;"
-	docker exec -i retrieval-postgres psql -U retrieval -d postgres -c "CREATE DATABASE retrieval OWNER retrieval;"
-	@echo "Running migrations against recreated database"
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-		uv run alembic upgrade head
 
 # Testing
 test:
@@ -109,7 +70,5 @@ clean:
 	rm -rf *.egg-info/
 	rm -rf dist/
 	rm -rf build/
-	rm -rf data/
-	rm -rf index/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from retrieval.discovery.openalex import OpenAlexClient, OpenAlexWork
+from retrieval.services.clients.openalex import OpenAlexClient, OpenAlexWork
 from .models import Paper
 
 

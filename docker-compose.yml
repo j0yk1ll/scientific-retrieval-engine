@@ -1,22 +1,6 @@
 version: "3.9"
 
 services:
-  postgres:
-    image: postgres:16
-    container_name: retrieval-postgres
-    environment:
-      POSTGRES_USER: retrieval
-      POSTGRES_PASSWORD: retrieval
-      POSTGRES_DB: retrieval
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U retrieval -d retrieval"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   grobid:
     image: lfoppiano/grobid:0.8.1
@@ -31,24 +15,3 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
-
-  chromadb:
-    image: chromadb/chroma:latest
-    container_name: retrieval-chromadb
-    environment:
-      IS_PERSISTENT: "TRUE"
-      ANONYMIZED_TELEMETRY: "FALSE"
-    ports:
-      - "8000:8000"
-    volumes:
-      - chromadb_data:/chroma/chroma
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-volumes:
-  postgres_data:
-  chromadb_data:

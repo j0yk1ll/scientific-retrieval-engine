@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from retrieval.acquisition.unpaywall import UnpaywallClient, UnpaywallRecord
+from retrieval.services.clients.unpaywall import UnpaywallClient, UnpaywallRecord
 
 
 class UnpaywallService:
