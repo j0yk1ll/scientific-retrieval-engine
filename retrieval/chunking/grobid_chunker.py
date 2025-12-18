@@ -40,7 +40,9 @@ class GrobidChunk:
 class GrobidChunker:
     """Turn GROBID TEI output into reproducible text chunks."""
 
-    def __init__(self, paper_id: str, tei_xml: str, *, encoding_name: str = "cl100k_base") -> None:
+    def __init__(
+        self, paper_id: str, tei_xml: str, *, encoding_name: str | None = None
+    ) -> None:
         self.paper_id = paper_id
         self.tei_xml = tei_xml
         self.encoding = self._build_encoding(encoding_name)
@@ -198,7 +200,9 @@ class GrobidChunker:
             trimmed = self.encoding.decode(encoded)
         return trimmed.strip()
 
-    def _build_encoding(self, encoding_name: str):
+    def _build_encoding(self, encoding_name: str | None):
+        if encoding_name is None:
+            return _WhitespaceEncoding()
         try:
             return tiktoken.get_encoding(encoding_name)
         except Exception:  # pragma: no cover - network or cache dependent
