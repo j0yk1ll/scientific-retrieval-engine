@@ -22,12 +22,17 @@ class Chunk:
     def from_grobid(
         cls, grobid_chunk: "GrobidChunk", *, title: Optional[str] = None
     ) -> "Chunk":
-        """Adapt a :class:`~retrieval.chunking.GrobidChunk` into a retrievable chunk."""
+        """Adapt a :class:`~retrieval.chunking.GrobidChunk` into a retrievable chunk.
+
+        The chunk metadata uses chunk-stream offsets rather than raw TEI character
+        positions to avoid implying direct mapping back to the source XML.
+        """
 
         metadata: Dict[str, Any] = {
-            "start_char": grobid_chunk.start_char,
-            "end_char": grobid_chunk.end_char,
+            "chunk_stream_start_char": grobid_chunk.stream_start_char,
+            "chunk_stream_end_char": grobid_chunk.stream_end_char,
             "token_count": grobid_chunk.token_count,
+            "section_index": grobid_chunk.section_index,
         }
 
         return cls(

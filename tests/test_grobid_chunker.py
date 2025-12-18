@@ -37,9 +37,12 @@ def test_chunking_preserves_section_headers_and_limits():
         assert chunk.token_count <= 200
         assert len(chunk.content) <= 220
 
-    # Offsets should be stable and monotonic
+    # Offsets should be stable and monotonic relative to the generated chunk stream
     for first, second in zip(chunks, chunks[1:]):
-        assert second.start_char == first.end_char
+        assert second.stream_start_char == first.stream_end_char
+
+    # Section indices should follow ordered sections (Title, Abstract, then body)
+    assert chunks[0].section_index == 0
 
 
 def test_chunking_is_reproducible():
