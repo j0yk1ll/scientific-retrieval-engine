@@ -46,6 +46,16 @@ class VariableDimEmbedder:
         return vectors
 
 
+class CountingEmbedder(StaticEmbedder):
+    def __init__(self, mapping: dict[str, Sequence[float]], default: Sequence[float]):
+        super().__init__(mapping, default)
+        self.call_count = 0
+
+    def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+        self.call_count += 1
+        return super().embed(texts)
+
+
 def test_bm25_prioritizes_lexical_match():
     bm25 = BM25Index()
     chunks = [
@@ -215,6 +225,30 @@ def test_retrieval_result_contains_ranks_when_enabled():
     assert results[0].vector_raw_score == 0.1
 
 
+def test_faiss_add_many_batches_embeddings_once():
+    embedder = CountingEmbedder(
+        {
+            "alpha": [1.0, 0.0],
+            "beta": [0.0, 1.0],
+        },
+        default=[0.0, 0.0],
+    )
+    index = FaissVectorIndex(embedder)
+
+    chunks = [
+        Chunk(chunk_id="1", paper_id="p1", text="alpha study"),
+        Chunk(chunk_id="2", paper_id="p2", text="beta analysis"),
+    ]
+
+    index.add_many(chunks)
+
+    assert embedder.call_count == 1
+
+    results = index.search("alpha query", k=2)
+
+    assert [chunk.chunk_id for chunk, _ in results] == ["1", "2"]
+
+
 def test_faiss_sets_dim_on_first_ensure_index():
     embedder = StaticEmbedder({}, default=[0.0, 0.0])
     index = FaissVectorIndex(embedder)
@@ -234,6 +268,18 @@ def test_faiss_raises_on_dim_mismatch_add():
 
     with pytest.raises(ValueError, match=r"expected 1, got 2"):
         index.add(Chunk(chunk_id="2", paper_id="p2", text="bad"))
+
+
+def test_faiss_add_many_raises_on_dim_mismatch():
+    embedder = VariableDimEmbedder(mismatch_on="bad")
+    index = FaissVectorIndex(embedder)
+
+    index.add_many([Chunk(chunk_id="1", paper_id="p1", text="ok")])
+
+    with pytest.raises(ValueError, match=r"expected 1, got 2"):
+        index.add_many([Chunk(chunk_id="2", paper_id="p2", text="bad")])
+
+    assert len(index._chunks) == 1
 
 
 def test_faiss_raises_on_dim_mismatch_search_query_vector():

@@ -32,8 +32,18 @@ class FaissVectorIndex:
             )
 
     def add(self, chunk: Chunk) -> None:
-        vector = self._embed_texts([chunk.text])[0]
-        vector_dim = len(vector)
+        self.add_many([chunk])
+
+    def add_many(self, chunks: Iterable[Chunk]) -> None:
+        chunk_list = list(chunks)
+        if not chunk_list:
+            return
+
+        vectors = self._embed_texts([chunk.text for chunk in chunk_list])
+        if vectors.ndim != 2:
+            raise ValueError("Embedding output must be a 2D matrix.")
+
+        vector_dim = vectors.shape[1]
         self._ensure_index(vector_dim)
         if self._dim is None:
             raise ValueError("FAISS index dimension is not initialized.")
@@ -41,12 +51,12 @@ class FaissVectorIndex:
             raise ValueError(
                 f"Embedding dimension mismatch: expected {self._dim}, got {vector_dim}"
             )
-        self._index.add(np.array([vector], dtype="float32"))
-        self._chunks.append(chunk)
 
-    def add_many(self, chunks: Iterable[Chunk]) -> None:
-        for chunk in chunks:
-            self.add(chunk)
+        if self._index is None:
+            raise ValueError("FAISS index is not initialized.")
+
+        self._index.add(np.array(vectors, dtype="float32"))
+        self._chunks.extend(chunk_list)
 
     def search(self, query: str, *, k: int = 10) -> List[Tuple[Chunk, float]]:
         if not query:
