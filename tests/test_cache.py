@@ -16,6 +16,7 @@ class DummyEmbedder:
 
     def __init__(self, dim: int = 4) -> None:
         self.dim = dim
+        self.dimension = dim
 
     def embed(self, texts):
         return [[float(i)] * self.dim for i, _ in enumerate(texts)]
@@ -81,6 +82,26 @@ def test_cache_key_sanitization_rejects_or_normalizes_unsafe_chars(cache_dir: Pa
     path = cache._doi_dir("10.1234/ABC DEF?%$")
     assert path.parent == cache_dir
     assert re.fullmatch(r"[a-z0-9._-]+", path.name)
+
+
+def test_metadata_loads_without_manifest(cache_dir: Path):
+    cache = DoiFileCache(cache_dir)
+    doi = "10.0000/abc"
+    paper = Paper(
+        paper_id="pid",
+        title="t",
+        doi=doi,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="test",
+    )
+    cache.store_metadata(doi, paper)
+
+    loaded = cache.load_metadata(doi)
+
+    assert loaded is not None
+    assert loaded.doi == doi
 
 
 def test_cache_version_mismatch_invalidates_or_ignores_old_entries(cache_dir: Path):

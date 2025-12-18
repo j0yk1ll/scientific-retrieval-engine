@@ -22,6 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from retrieval.services.search_service import PaperSearchService
 
 CACHE_VERSION = "1"
+MANIFEST_FILE = "manifest.json"
 
 
 def _atomic_write_text(path: Path, data: str) -> None:
@@ -57,12 +58,18 @@ class DoiFileCache:
         *,
         chunk_encoding_name: str | None = None,
         chunker_version: str | None = None,
+        embedder_model_name: str | None = None,
+        embedder_dimension: int | None = None,
+        embedder_normalized: bool | None = None,
     ) -> None:
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._ensure_cache_version()
         self.chunk_encoding_name = chunk_encoding_name
         self.chunker_version = chunker_version or getattr(GrobidChunker, "VERSION", "unknown")
+        self.embedder_model_name = embedder_model_name
+        self.embedder_dimension = embedder_dimension
+        self.embedder_normalized = embedder_normalized
 
     def load_metadata(self, doi: str) -> Optional[Paper]:
         if not self._version_matches:
@@ -98,6 +105,8 @@ class DoiFileCache:
     def load_chunks(self, doi: str) -> Optional[List[Chunk]]:
         if not self._version_matches:
             return None
+        if not self._manifest_chunks_match(doi):
+            return None
         path = self._chunks_path(doi)
         if not path.exists():
             return None
@@ -108,9 +117,19 @@ class DoiFileCache:
         path = self._chunks_path(doi)
         serialized = [asdict(chunk) for chunk in chunks]
         _atomic_write_text(path, json.dumps(serialized, indent=2, sort_keys=True))
+        self._write_manifest(
+            doi,
+            {
+                "cache_version": CACHE_VERSION,
+                "chunker_version": self.chunker_version,
+                "encoding": self.chunk_encoding_name,
+            },
+        )
 
     def load_embeddings(self, doi: str) -> Optional[List[Sequence[float]]]:
         if not self._version_matches:
+            return None
+        if not self._manifest_embeddings_match(doi):
             return None
         path = self._embeddings_path(doi)
         if not path.exists():
@@ -130,6 +149,20 @@ class DoiFileCache:
         path = self._embeddings_path(doi)
         payload = {"metadata": embedding_metadata, "embeddings": list(embeddings)}
         _atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True))
+        manifest = self._load_manifest(doi) or {}
+        manifest.update(
+            {
+                "cache_version": CACHE_VERSION,
+                "chunker_version": self.chunker_version,
+                "encoding": self.chunk_encoding_name,
+                "embedder": {
+                    "model": embedding_metadata.get("model"),
+                    "dimension": embedding_metadata.get("dimension"),
+                    "normalized": embedding_metadata.get("normalized"),
+                },
+            }
+        )
+        self._write_manifest(doi, manifest)
 
     def build_chunks(self, *, doi: str, tei_xml: str, paper_id: str, title: Optional[str]) -> List[Chunk]:
         chunker = GrobidChunker(
@@ -159,6 +192,9 @@ class DoiFileCache:
     def _embeddings_path(self, doi: str) -> Path:
         return self._doi_dir(doi) / "embeddings.json"
 
+    def _manifest_path(self, doi: str) -> Path:
+        return self._doi_dir(doi) / MANIFEST_FILE
+
     def _ensure_cache_version(self) -> None:
         version_file = self.base_dir / "cache_version"
         if not version_file.exists():
@@ -185,6 +221,74 @@ class DoiFileCache:
                 child.unlink()
         _atomic_write_text(version_file, CACHE_VERSION)
         self._version_matches = True
+
+    def _load_manifest(self, doi: str) -> Optional[Dict[str, object]]:
+        path = self._manifest_path(doi)
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except json.JSONDecodeError:
+            return None
+
+    def _write_manifest(self, doi: str, manifest: Dict[str, object]) -> None:
+        manifest = dict(manifest)
+        manifest.setdefault("cache_version", CACHE_VERSION)
+        _atomic_write_text(self._manifest_path(doi), json.dumps(manifest, indent=2, sort_keys=True))
+
+    def _manifest_chunks_match(self, doi: str) -> bool:
+        manifest = self._load_manifest(doi)
+        if not manifest:
+            self._invalidate_chunks(doi, include_embeddings=True)
+            return False
+        if manifest.get("cache_version") != CACHE_VERSION:
+            self._invalidate_chunks(doi, include_embeddings=True)
+            return False
+        if manifest.get("chunker_version") != self.chunker_version:
+            self._invalidate_chunks(doi, include_embeddings=True)
+            return False
+        if manifest.get("encoding") != self.chunk_encoding_name:
+            self._invalidate_chunks(doi, include_embeddings=True)
+            return False
+        return True
+
+    def _manifest_embeddings_match(self, doi: str) -> bool:
+        manifest = self._load_manifest(doi)
+        if not manifest:
+            self._invalidate_embeddings(doi)
+            return False
+        if manifest.get("cache_version") != CACHE_VERSION:
+            self._invalidate_embeddings(doi)
+            return False
+        embedder_manifest = manifest.get("embedder") or {}
+        if embedder_manifest and self.embedder_model_name:
+            if embedder_manifest.get("model") != self.embedder_model_name:
+                self._invalidate_embeddings(doi)
+                return False
+        if embedder_manifest and self.embedder_dimension is not None:
+            if embedder_manifest.get("dimension") != self.embedder_dimension:
+                self._invalidate_embeddings(doi)
+                return False
+        if embedder_manifest and self.embedder_normalized is not None:
+            if embedder_manifest.get("normalized") != self.embedder_normalized:
+                self._invalidate_embeddings(doi)
+                return False
+        if not embedder_manifest and any(
+            value is not None
+            for value in (self.embedder_model_name, self.embedder_dimension, self.embedder_normalized)
+        ):
+            self._invalidate_embeddings(doi)
+            return False
+        return True
+
+    def _invalidate_chunks(self, doi: str, *, include_embeddings: bool = False) -> None:
+        self._chunks_path(doi).unlink(missing_ok=True)
+        self._manifest_path(doi).unlink(missing_ok=True)
+        if include_embeddings:
+            self._invalidate_embeddings(doi)
+
+    def _invalidate_embeddings(self, doi: str) -> None:
+        self._embeddings_path(doi).unlink(missing_ok=True)
 
     def _deserialize_provenance(self, data: Optional[Dict[str, object]]) -> Optional[PaperProvenance]:
         if not data:
@@ -242,6 +346,7 @@ class CachedPaperPipeline:
         )
         self.grobid_client = grobid_client
         self.embedder = embedder
+        self._configure_cache_embedder_requirements()
 
     def ingest(self, doi: str, *, pdf: str | bytes | Path) -> CachedPaperArtifacts:
         metadata = self.cache.load_metadata(doi)
@@ -282,9 +387,13 @@ class CachedPaperPipeline:
         return self.search_service.search_by_doi(doi)
 
     def _build_embedding_metadata(self, embeddings: List[Sequence[float]]) -> Dict[str, object]:
-        dimension = len(embeddings[0]) if embeddings else 0
+        dimension = self.cache.embedder_dimension
+        if dimension is None:
+            dimension = len(embeddings[0]) if embeddings else 0
         model_name = getattr(self.embedder, "model_name", None) or self.embedder.__class__.__name__
-        normalized = getattr(self.embedder, "normalized", None)
+        normalized = self.cache.embedder_normalized
+        if normalized is None:
+            normalized = getattr(self.embedder, "normalized", None)
         if normalized is None:
             normalized = getattr(self.embedder, "normalize", None)
         return {
@@ -293,6 +402,24 @@ class CachedPaperPipeline:
             "normalized": bool(normalized) if normalized is not None else False,
             "chunker_version": self.cache.chunker_version,
         }
+
+    def _configure_cache_embedder_requirements(self) -> None:
+        model_name = getattr(self.embedder, "model_name", None) or self.embedder.__class__.__name__
+        normalized = getattr(self.embedder, "normalized", None)
+        if normalized is None:
+            normalized = getattr(self.embedder, "normalize", None)
+        for candidate in ("dimension", "embedding_dimension", "embedding_size", "output_dim", "dim"):
+            dimension_value = getattr(self.embedder, candidate, None)
+            if dimension_value is not None:
+                break
+        else:
+            dimension_value = None
+
+        self.cache.embedder_model_name = model_name
+        self.cache.embedder_normalized = bool(normalized) if normalized is not None else None
+        self.cache.embedder_dimension = (
+            int(dimension_value) if isinstance(dimension_value, (int, float)) else None
+        )
 
 
 __all__ = ["CachedPaperArtifacts", "CachedPaperPipeline", "DoiFileCache"]
