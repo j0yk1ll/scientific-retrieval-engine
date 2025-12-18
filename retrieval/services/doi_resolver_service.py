@@ -1,3 +1,17 @@
+"""Title-to-DOI resolution backed by Crossref and DataCite.
+
+Example
+-------
+```python
+from retrieval.services.doi_resolver_service import DoiResolverService
+
+resolver = DoiResolverService()
+doi = resolver.resolve_doi_from_title(
+    "Attention is all you need", expected_authors=["Ashish Vaswani", "Noam Shazeer"]
+)
+```
+"""
+
 from __future__ import annotations
 
 import logging
@@ -12,7 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 class DoiResolverService:
-    """Resolve DOIs from titles using Crossref with simple heuristics."""
+    """Resolve DOIs from titles using Crossref and DataCite heuristics.
+
+    The service searches both registries, applies token-level similarity, and
+    optionally filters on overlapping author names to avoid over-eager matches.
+    """
 
     def __init__(
         self,

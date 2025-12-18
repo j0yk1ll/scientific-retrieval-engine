@@ -125,11 +125,12 @@ def resolve_full_text(
     title: str,
     unpaywall_client: UnpaywallClient,
 ) -> Optional[FullTextCandidate]:
-    """Resolve full text via Unpaywall, then fallback to preprints by title.
+    """Resolve full text via Unpaywall without scraping or alternate fallbacks.
 
-    The helper keeps network concerns inside the provided clients and uses
-    :class:`TitleMatcher` to pick the most plausible preprint when Unpaywall does
-    not yield a PDF URL.
+    The helper keeps network concerns inside the provided client and returns the
+    best open-access PDF URL when Unpaywall supplies one. The ``title`` is used
+    only for metadata symmetry with other call sites and is not resolved against
+    external sources.
     """
 
     try:
