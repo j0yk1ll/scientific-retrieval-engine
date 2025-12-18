@@ -196,7 +196,10 @@ class BaseHttpClient:
     responses with status codes in :data:`RETRYABLE_STATUS_CODES`. After the
     retry budget is exhausted, HTTP 429 responses raise
     :class:`RateLimitedError` (including any parsed ``Retry-After`` hint) while
-    5xx responses raise :class:`UpstreamError`.
+    5xx responses raise :class:`UpstreamError`. Both transport-level exceptions
+    and retryable HTTP responses share the same retry budget; once exhausted,
+    the final response is surfaced as a structured exception for clearer
+    handling by callers.
     """
 
     BASE_URL = ""

@@ -71,6 +71,29 @@ def test_group_key_does_not_fragment_on_first_author_ordering():
     assert service._make_group_key(paper_a) == service._make_group_key(paper_b)
 
 
+def test_group_key_prefers_doi_like_paper_id_when_missing_doi():
+    service = PaperSearchService(
+        openalex=StubOpenAlexService([]),
+        semanticscholar=StubSemanticScholarService([]),
+        crossref=StubCrossrefService(),
+        datacite=StubDataCiteService(),
+        doi_resolver=StubDoiResolver(),
+    )
+
+    paper = Paper(
+        paper_id="10.5555/ABC.DEF/1234",
+        title=None,
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="openalex",
+        authors=None,
+    )
+
+    assert service._make_group_key(paper) == "doi:10.5555/abc.def/1234"
+
+
 def test_soft_grouping_merges_subtitle_punctuation_variants():
     openalex_paper = Paper(
         paper_id="oa:1",
