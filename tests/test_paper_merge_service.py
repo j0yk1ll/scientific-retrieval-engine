@@ -166,6 +166,36 @@ def test_merge_prefers_higher_priority_source_for_doi() -> None:
     assert merged.provenance.field_sources["doi"].source == "crossref"
 
 
+def test_primary_source_prefers_doi_presence_over_priority() -> None:
+    higher_priority_without_doi = Paper(
+        paper_id="datacite:1",
+        title="Example",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="datacite",
+    )
+
+    lower_priority_with_doi = Paper(
+        paper_id="crossref:1",
+        title="Example",
+        doi="10.1234/example",
+        abstract=None,
+        year=None,
+        venue=None,
+        source="crossref",
+    )
+
+    merged = PaperMergeService(source_priority=["datacite", "crossref"]).merge(
+        [higher_priority_without_doi, lower_priority_with_doi]
+    )
+
+    assert merged.primary_source == "crossref"
+    assert merged.doi == "10.1234/example"
+    assert merged.provenance.field_sources["doi"].source == "crossref"
+
+
 def test_merge_tie_breaker_abstract_prefers_longer() -> None:
     secondary = Paper(
         paper_id="secondary",

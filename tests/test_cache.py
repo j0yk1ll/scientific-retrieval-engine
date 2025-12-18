@@ -152,3 +152,30 @@ def test_embedding_metadata_is_saved(cache_dir: Path):
     assert payload["metadata"]["chunker_version"] == GrobidChunker.VERSION
     assert len(payload["embeddings"]) == len(artifacts.embeddings)
 
+
+def test_embeddings_are_invalidated_when_embedder_changes(cache_dir: Path) -> None:
+    cache = DoiFileCache(
+        cache_dir,
+        chunk_encoding_name="enc",
+        chunker_version="chunker-v1",
+        embedder_model_name="model-a",
+        embedder_dimension=3,
+        embedder_normalized=True,
+    )
+    doi = "10.0000/abc"
+
+    embeddings_path = cache._embeddings_path(doi)
+    embeddings_path.parent.mkdir(parents=True, exist_ok=True)
+    embeddings_path.write_text(json.dumps({"embeddings": [[0.1, 0.2, 0.3]]}))
+
+    manifest = {
+        "cache_version": CACHE_VERSION,
+        "chunker_version": "chunker-v1",
+        "encoding": "enc",
+        "embedder": {"model": "model-a", "dimension": 2, "normalized": True},
+    }
+    cache._write_manifest(doi, manifest)
+
+    assert cache.load_embeddings(doi) is None
+    assert not embeddings_path.exists()
+
