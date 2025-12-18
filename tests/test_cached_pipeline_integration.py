@@ -12,12 +12,14 @@ from retrieval.services import PaperMergeService
 
 
 class CountingEmbedder:
-    def __init__(self) -> None:
+    def __init__(self, dimension: int = 2) -> None:
         self.calls = 0
+        self.dimension = dimension
+        self.model_name = "counting"
 
     def embed(self, texts):
         self.calls += 1
-        return [[float(len(text)), float(len(text.split()))] for text in texts]
+        return [[float(len(text))] * self.dimension for text in texts]
 
 
 @responses.activate
@@ -81,6 +83,132 @@ def test_cached_pipeline_round_trip(tmp_path: Path):
     assert search_service.calls == 1  # Metadata loaded from cache
     assert second.paper.title == first.paper.title
     assert second.embeddings == first.embeddings
+
+
+@responses.activate
+def test_embedder_dimension_change_forces_reembedding(tmp_path: Path):
+    doi = "10.1234/example"
+    cache = DoiFileCache(tmp_path / "cache")
+    first_embedder = CountingEmbedder(dimension=2)
+
+    paper = Paper(
+        paper_id=doi,
+        title="Example Paper",
+        doi=doi,
+        abstract="An example abstract",
+        year=2024,
+        venue="Example Venue",
+        source="crossref",
+    )
+
+    class StubSearchService:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.merge_service = PaperMergeService()
+
+        def search_by_doi(self, incoming_doi: str):
+            self.calls += 1
+            return [paper] if incoming_doi == doi else []
+
+    tei_xml = (Path(__file__).parent / "fixtures" / "grobid_sample.xml").read_text()
+
+    responses.add(
+        responses.POST,
+        "http://grobid.test/api/processFulltextDocument",
+        body=tei_xml,
+        status=200,
+        content_type="application/xml",
+    )
+
+    search_service = StubSearchService()
+    pipeline = CachedPaperPipeline(
+        cache=cache,
+        search_service=search_service,
+        grobid_client=GrobidClient(base_url="http://grobid.test"),
+        embedder=first_embedder,
+    )
+
+    first = pipeline.ingest(doi, pdf=b"%PDF-1.4 sample")
+    assert len(responses.calls) == 1
+    assert first_embedder.calls == 1
+
+    second_embedder = CountingEmbedder(dimension=3)
+    second_pipeline = CachedPaperPipeline(
+        cache=cache,
+        search_service=StubSearchService(),
+        grobid_client=GrobidClient(base_url="http://grobid.test"),
+        embedder=second_embedder,
+    )
+
+    second = second_pipeline.ingest(doi, pdf=b"%PDF-1.4 sample")
+
+    assert len(responses.calls) == 1  # TEI served from cache
+    assert second_embedder.calls == 1  # Re-embedded after dimension change
+    assert all(len(vec) == 3 for vec in second.embeddings)
+
+
+@responses.activate
+def test_chunk_encoding_change_forces_rechunk(tmp_path: Path):
+    doi = "10.1234/example"
+    base_cache = tmp_path / "cache"
+    cache = DoiFileCache(base_cache, chunk_encoding_name="utf-8")
+    embedder = CountingEmbedder()
+
+    paper = Paper(
+        paper_id=doi,
+        title="Example Paper",
+        doi=doi,
+        abstract="An example abstract",
+        year=2024,
+        venue="Example Venue",
+        source="crossref",
+    )
+
+    class StubSearchService:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.merge_service = PaperMergeService()
+
+        def search_by_doi(self, incoming_doi: str):
+            self.calls += 1
+            return [paper] if incoming_doi == doi else []
+
+    tei_xml = (Path(__file__).parent / "fixtures" / "grobid_sample.xml").read_text()
+
+    responses.add(
+        responses.POST,
+        "http://grobid.test/api/processFulltextDocument",
+        body=tei_xml,
+        status=200,
+        content_type="application/xml",
+    )
+
+    search_service = StubSearchService()
+    pipeline = CachedPaperPipeline(
+        cache=cache,
+        search_service=search_service,
+        grobid_client=GrobidClient(base_url="http://grobid.test"),
+        embedder=embedder,
+    )
+
+    first = pipeline.ingest(doi, pdf=b"%PDF-1.4 sample")
+    assert embedder.calls == 1
+
+    new_cache = DoiFileCache(base_cache, chunk_encoding_name="latin-1")
+    new_embedder = CountingEmbedder()
+    second_pipeline = CachedPaperPipeline(
+        cache=new_cache,
+        search_service=StubSearchService(),
+        grobid_client=GrobidClient(base_url="http://grobid.test"),
+        embedder=new_embedder,
+    )
+
+    second = second_pipeline.ingest(doi, pdf=b"%PDF-1.4 sample")
+
+    assert len(responses.calls) == 1  # TEI served from cache
+    assert new_embedder.calls == 1  # Rechunking triggered new embeddings
+    assert second.chunks
+    assert second.embeddings
 
 
 @responses.activate
