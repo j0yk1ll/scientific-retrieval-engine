@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import requests
 
-from .models import Citation
+from retrieval.models import Citation
 
 
 class OpenCitationsService:

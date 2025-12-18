@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Do not override existing environment variables unless explicitly needed.
 load_dotenv(dotenv_path=".env", override=False)
 
+from .models import Citation, Paper
 from .api import (
     clear_papers_and_evidence,
     gather_evidence,
@@ -21,6 +22,8 @@ from .api import (
 )
 
 __all__ = [
+    "Paper",
+    "Citation",
     "search_papers",
     "search_paper_by_doi",
     "search_paper_by_title",

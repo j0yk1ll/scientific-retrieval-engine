@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from .models import Citation, Paper
 from .session import SESSION_INDEX
-from .services.models import Citation, Paper
 from .services.opencitations_service import OpenCitationsService
 from .services.search_service import PaperSearchService
 

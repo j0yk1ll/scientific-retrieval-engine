@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from retrieval.services.clients.openalex import OpenAlexClient, OpenAlexWork
-from .models import Paper
+from retrieval.clients.openalex import OpenAlexClient, OpenAlexWork
+from retrieval.models import Paper
 
 
 class OpenAlexService:
