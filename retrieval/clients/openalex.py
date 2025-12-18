@@ -8,6 +8,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import requests
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from retrieval.identifiers import normalize_doi
+
 
 @dataclass
 class OpenAlexWork:
@@ -81,7 +83,7 @@ class OpenAlexClient:
 
     def _normalize_work(self, data: Dict[str, Any]) -> OpenAlexWork:
         openalex_id = self._normalize_openalex_id(data.get("id"))
-        doi = self._normalize_doi(data.get("doi"))
+        doi = normalize_doi(data.get("doi"))
         title = data.get("display_name") or data.get("title")
         year = data.get("publication_year")
         venue = self._normalize_venue(data.get("host_venue"))
@@ -136,14 +138,6 @@ class OpenAlexClient:
         if not raw_id:
             return ""
         return raw_id.rsplit("/", 1)[-1]
-
-    def _normalize_doi(self, raw_doi: Optional[str]) -> Optional[str]:
-        if not raw_doi:
-            return None
-        prefix = "doi.org/"
-        if prefix in raw_doi:
-            return raw_doi.split(prefix, 1)[1]
-        return raw_doi.replace("DOI:", "").strip()
 
     def _normalize_venue(self, host_venue: Any) -> Optional[str]:
         if isinstance(host_venue, dict):

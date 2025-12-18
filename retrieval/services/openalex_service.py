@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from retrieval.clients.openalex import OpenAlexClient, OpenAlexWork
+from retrieval.identifiers import normalize_doi
 from retrieval.models import Paper
 
 
@@ -34,11 +35,10 @@ class OpenAlexService:
         return papers, next_cursor
 
     def get_by_doi(self, doi: str) -> Optional[Paper]:
-        if not doi:
+        normalized_doi = normalize_doi(doi)
+        if not normalized_doi:
             return None
-        openalex_id = doi
-        if not doi.startswith("https://doi.org/"):
-            openalex_id = f"https://doi.org/{doi}"
+        openalex_id = f"https://doi.org/{normalized_doi}"
         work = self.client.get_work(openalex_id)
         return self._to_paper(work)
 
@@ -50,7 +50,7 @@ class OpenAlexService:
         return Paper(
             paper_id=work.openalex_id or work.doi or work.title or "",
             title=work.title or "",
-            doi=work.doi,
+            doi=normalize_doi(work.doi),
             abstract=work.abstract,
             year=work.year,
             venue=work.venue,

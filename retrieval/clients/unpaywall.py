@@ -7,6 +7,8 @@ from typing import List, Optional, Sequence
 
 import requests
 
+from retrieval.identifiers import normalize_doi
+
 
 @dataclass
 class OpenAccessLocation:
@@ -78,7 +80,11 @@ class UnpaywallClient:
     def get_record(self, doi: str) -> UnpaywallRecord:
         """Fetch and parse an Unpaywall record for the given DOI."""
 
-        url = f"{self.base_url}/{doi}"
+        normalized_doi = normalize_doi(doi)
+        if not normalized_doi:
+            raise ValueError("DOI is required for Unpaywall requests")
+
+        url = f"{self.base_url}/{normalized_doi}"
         response = self.session.get(url, params={"email": self.email}, timeout=self.timeout)
         response.raise_for_status()
         payload = response.json()
@@ -98,7 +104,7 @@ class UnpaywallClient:
             locations.insert(0, best_location)
 
         return UnpaywallRecord(
-            doi=payload.get("doi", ""),
+            doi=normalize_doi(payload.get("doi")) or "",
             title=payload.get("title"),
             best_oa_location=best_location,
             oa_locations=locations,
