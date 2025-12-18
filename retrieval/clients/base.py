@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Optional
 
+import random
+
 import requests
 from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
@@ -99,7 +101,11 @@ def _parse_retry_after(value: Optional[str]) -> Optional[float]:
     return max(delay, 0.0)
 
 
-_fallback_wait = wait_exponential(multiplier=0.5, min=0.5, max=8)
+_BASE_WAIT_MAX = 8
+_RATE_LIMIT_WAIT_MAX = 12
+
+_base_wait = wait_exponential(multiplier=0.5, min=0.5, max=_BASE_WAIT_MAX)
+_rate_limit_wait = wait_exponential(multiplier=0.75, min=1.0, max=_RATE_LIMIT_WAIT_MAX)
 
 _BODY_EXCERPT_LIMIT = 200
 
@@ -108,15 +114,26 @@ def _retry_wait(retry_state: RetryCallState) -> float:
     """Custom wait strategy honoring Retry-After headers when available."""
 
     wait_seconds: Optional[float] = None
+    max_wait_seconds: Optional[float] = None
+    wait_strategy = _base_wait
     if retry_state.outcome is not None and retry_state.outcome.failed:
         exception = retry_state.outcome.exception()
         if isinstance(exception, RetryableResponseError):
+            if exception.response.status_code == 429:
+                wait_strategy = _rate_limit_wait
+                max_wait_seconds = _RATE_LIMIT_WAIT_MAX
             wait_seconds = _parse_retry_after(exception.response.headers.get("Retry-After"))
 
     if wait_seconds is not None:
         return wait_seconds
 
-    return _fallback_wait(retry_state)
+    fallback = wait_strategy(retry_state)
+    if max_wait_seconds is None:
+        max_wait_seconds = _BASE_WAIT_MAX
+
+    jittered_min = fallback * 0.5
+    jittered_max = min(fallback * 1.5, max_wait_seconds)
+    return random.uniform(jittered_min, jittered_max)
 
 
 def _sanitize_excerpt(text: str, max_length: int) -> str:
