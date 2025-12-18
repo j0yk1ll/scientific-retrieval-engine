@@ -26,3 +26,6 @@ class Citation:
     citing: str
     cited: str
     creation: Optional[str] = None
+
+
+__all__ = ["Paper", "Citation"]

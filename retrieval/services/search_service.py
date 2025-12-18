@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Iterable, List, Optional, Set
 
-from .models import Paper
+from retrieval.models import Paper
+
 from .openalex_service import OpenAlexService
 from .semanticscholar_service import SemanticScholarService
 

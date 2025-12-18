@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .models import Paper
+from retrieval.models import Paper
 
 
 class SemanticScholarService:
