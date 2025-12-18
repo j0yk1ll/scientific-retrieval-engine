@@ -1,28 +1,21 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import requests
-
+from retrieval.clients.semanticscholar import (
+    DEFAULT_FIELDS,
+    SemanticScholarClient,
+    SemanticScholarPaper,
+)
 from retrieval.identifiers import normalize_doi
 from retrieval.models import Paper
 
 
 class SemanticScholarService:
-    """Client for the Semantic Scholar API (Graph API v1)."""
+    """Service wrapper around :class:`SemanticScholarClient` with Paper normalization."""
 
-    BASE_URL = "https://api.semanticscholar.org/graph/v1"
-
-    def __init__(
-        self,
-        *,
-        session: Optional[requests.Session] = None,
-        timeout: float = 10.0,
-        base_url: Optional[str] = None,
-    ) -> None:
-        self.session = session or requests.Session()
-        self.timeout = timeout
-        self.base_url = base_url or self.BASE_URL
+    def __init__(self, client: Optional[SemanticScholarClient] = None) -> None:
+        self.client = client or SemanticScholarClient()
 
     def search(
         self,
@@ -32,55 +25,33 @@ class SemanticScholarService:
         min_year: Optional[int] = None,
         max_year: Optional[int] = None,
     ) -> List[Paper]:
-        params: Dict[str, Any] = {
-            "query": query,
-            "limit": limit,
-            "fields": "title,abstract,year,venue,authors,url,doi",
-        }
-        if min_year is not None:
-            params["year"] = f">={min_year}"
-        if max_year is not None:
-            year_filter = params.get("year")
-            if year_filter:
-                params["year"] = f"{year_filter},<={max_year}"
-            else:
-                params["year"] = f"<={max_year}"
-
-        response = self.session.get(
-            f"{self.base_url}/paper/search", params=params, timeout=self.timeout
+        results = self.client.search_papers(
+            query,
+            limit=limit,
+            min_year=min_year,
+            max_year=max_year,
+            fields=DEFAULT_FIELDS,
         )
-        response.raise_for_status()
-        data = response.json()
-        return [self._to_paper(item) for item in data.get("data", [])]
+        return [self._to_paper(record) for record in results]
 
     def get_by_doi(self, doi: str) -> Optional[Paper]:
-        normalized_doi = normalize_doi(doi)
-        if not normalized_doi:
+        record = self.client.get_by_doi(doi, fields=DEFAULT_FIELDS)
+        if record is None:
             return None
-        response = self.session.get(
-            f"{self.base_url}/paper/DOI:{normalized_doi}",
-            params={"fields": "title,abstract,year,venue,authors,url,doi"},
-            timeout=self.timeout,
-        )
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-        return self._to_paper(response.json())
+        return self._to_paper(record)
 
     def get_by_title(self, title: str, *, limit: int = 5) -> List[Paper]:
         return self.search(title, limit=limit)
 
-    def _to_paper(self, payload: Dict[str, Any]) -> Paper:
-        authors = [author.get("name", "") for author in payload.get("authors", []) if author.get("name")]
-        normalized_doi = normalize_doi(payload.get("doi"))
+    def _to_paper(self, record: SemanticScholarPaper) -> Paper:
         return Paper(
-            paper_id=str(payload.get("paperId") or payload.get("externalIds", {}).get("CorpusId") or payload.get("doi") or payload.get("title") or ""),
-            title=payload.get("title") or "",
-            doi=normalized_doi,
-            abstract=payload.get("abstract"),
-            year=payload.get("year"),
-            venue=payload.get("venue"),
+            paper_id=record.paper_id or record.doi or record.title or "",
+            title=record.title or "",
+            doi=normalize_doi(record.doi),
+            abstract=record.abstract,
+            year=record.year,
+            venue=record.venue,
             source="semanticscholar",
-            url=payload.get("url"),
-            authors=authors,
+            url=record.url,
+            authors=record.authors,
         )

@@ -6,6 +6,7 @@ import requests
 
 from .clients.openalex import OpenAlexClient
 from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
+from .clients.semanticscholar import SemanticScholarClient
 from .models import Citation, Paper
 from .services.opencitations_service import OpenCitationsService
 from .services.search_service import PaperSearchService
@@ -42,11 +43,12 @@ class RetrievalClient:
         )
         openalex_service = OpenAlexService(openalex_client)
 
-        semanticscholar_service = SemanticScholarService(
+        semanticscholar_client = SemanticScholarClient(
             session=self.session,
-            timeout=self.settings.timeout,
             base_url=self.settings.semanticscholar_base_url,
+            timeout=self.settings.timeout,
         )
+        semanticscholar_service = SemanticScholarService(semanticscholar_client)
 
         self._search_service = search_service or PaperSearchService(
             openalex=openalex_service,
