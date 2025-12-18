@@ -123,8 +123,69 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
 
     assert results
     assert results[0].chunk.chunk_id == "chunk-2"
-    assert results[0].vector_score is not None
-    assert results[0].lexical_score is None or results[0].lexical_score <= results[0].vector_score
+    assert results[0].vector_raw_score is not None
+    assert (
+        results[0].lexical_raw_score is None
+        or results[0].lexical_raw_score <= results[0].vector_raw_score
+    )
+
+
+class StaticIndex:
+    def __init__(self, hits: list[tuple[Chunk, float]]):
+        self.hits = hits
+
+    def add_many(self, chunks: Sequence[Chunk]) -> None:  # pragma: no cover - stub
+        return None
+
+    def search(self, query: str, k: int = 10) -> list[tuple[Chunk, float]]:
+        return self.hits[:k]
+
+
+def test_rrf_fusion_orders_by_rank_not_magnitude():
+    chunks = [
+        Chunk(chunk_id="a", paper_id="p1", text="high lexical"),
+        Chunk(chunk_id="b", paper_id="p2", text="high vector"),
+    ]
+
+    bm25_hits = [(chunks[0], 1000.0), (chunks[1], 0.01)]
+    vector_hits = [(chunks[1], 0.1), (chunks[0], 0.001)]
+
+    hybrid = HybridRetriever(
+        StaticIndex(bm25_hits),
+        StaticIndex(vector_hits),
+        config=HybridRetrievalConfig(bm25_weight=0.1, vector_weight=2.0, limit=2),
+    )
+
+    results = hybrid.search("query")
+
+    assert results[0].chunk.chunk_id == "b"
+    assert results[0].fused_score > results[1].fused_score
+
+
+def test_retrieval_result_contains_ranks_when_enabled():
+    chunks = [
+        Chunk(chunk_id="a", paper_id="p1", text="high lexical"),
+        Chunk(chunk_id="b", paper_id="p2", text="high vector"),
+    ]
+
+    bm25_hits = [(chunks[0], 10.0), (chunks[1], 1.0)]
+    vector_hits = [(chunks[1], 0.1), (chunks[0], 0.01)]
+
+    hybrid = HybridRetriever(
+        StaticIndex(bm25_hits),
+        StaticIndex(vector_hits),
+        config=HybridRetrievalConfig(
+            include_ranks=True, bm25_weight=0.1, vector_weight=2.0, limit=2
+        ),
+    )
+
+    results = hybrid.search("query")
+
+    assert results[0].chunk.chunk_id == "b"
+    assert results[0].lexical_rank == 2
+    assert results[0].vector_rank == 1
+    assert results[0].lexical_raw_score == 1.0
+    assert results[0].vector_raw_score == 0.1
 
 
 def test_faiss_sets_dim_on_first_ensure_index():

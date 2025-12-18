@@ -46,5 +46,7 @@ class RetrievedChunk:
 
     chunk: Chunk
     fused_score: float
-    lexical_score: Optional[float] = None
-    vector_score: Optional[float] = None
+    lexical_raw_score: Optional[float] = None
+    vector_raw_score: Optional[float] = None
+    lexical_rank: Optional[int] = None
+    vector_rank: Optional[int] = None
