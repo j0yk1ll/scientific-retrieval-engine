@@ -89,7 +89,9 @@ class PaperMergeService:
             tie_breaker=self._prefer_more_authors,
         )
 
-        primary_source = doi_evidence.source if doi_evidence else papers[primary_index].source
+        primary_source = self._determine_primary_source(
+            selections, fallback_source=papers[primary_index].source
+        )
 
         merged = Paper(
             paper_id=selections["paper_id"][0] or doi_value or papers[primary_index].paper_id,
@@ -184,21 +186,64 @@ class PaperMergeService:
                 continue
 
             rank = self._source_rank(paper.source, priorities)
-            if selected_evidence is None or rank < selected_rank:  # type: ignore[operator]
+            if selected_evidence is None:
                 selected_value = value
                 selected_evidence = PaperEvidence(source=paper.source, value=value)
                 selected_rank = rank
                 selected_position = position
                 continue
 
-            if rank == selected_rank:
-                if tie_breaker and tie_breaker(selected_value, value):
-                    selected_value = value
-                    selected_evidence = PaperEvidence(source=paper.source, value=value)
-                    selected_position = position
-                elif selected_position is None or position < selected_position:
-                    selected_position = selected_position or position
+            better_candidate = False
+            if rank < selected_rank:  # type: ignore[operator]
+                better_candidate = True
+            elif rank == selected_rank:
+                if tie_breaker:
+                    tie_decision = tie_breaker(selected_value, value)
+                    if tie_decision is True:
+                        better_candidate = True
+                    elif tie_decision is False:
+                        better_candidate = False
+                    else:
+                        better_candidate = position < selected_position  # type: ignore[operator]
+                else:
+                    better_candidate = position < selected_position  # type: ignore[operator]
+
+            if better_candidate:
+                selected_value = value
+                selected_evidence = PaperEvidence(source=paper.source, value=value)
+                selected_rank = rank
+                selected_position = position
         return selected_value, selected_evidence
+
+    def _determine_primary_source(
+        self,
+        selections: Dict[str, Tuple[Any, PaperEvidence | None]],
+        *,
+        fallback_source: str,
+    ) -> str:
+        identifier_fields = ("doi", "title", "paper_id")
+        for field_name in identifier_fields:
+            value, evidence = selections.get(field_name, (None, None))
+            if evidence and self._is_non_empty(value):
+                return evidence.source
+
+        counts: Dict[str, int] = {}
+        for value, evidence in selections.values():
+            if evidence:
+                counts[evidence.source] = counts.get(evidence.source, 0) + 1
+
+        if counts:
+            sorted_sources = sorted(
+                counts.items(),
+                key=lambda item: (
+                    -item[1],
+                    self._source_rank(item[0], self.source_priority_order),
+                    item[0],
+                ),
+            )
+            return sorted_sources[0][0]
+
+        return fallback_source
 
     def _record_field_sources(
         self,

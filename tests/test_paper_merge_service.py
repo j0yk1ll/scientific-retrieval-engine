@@ -136,3 +136,152 @@ def test_merge_obeys_source_priority_rules() -> None:
     assert merged.provenance.field_sources["url"].source == "crossref"
     assert merged.provenance.field_sources["abstract"].source == "openalex"
     assert merged.provenance.field_sources["authors"].source == "semanticscholar"
+
+
+def test_merge_prefers_higher_priority_source_for_doi() -> None:
+    datacite = Paper(
+        paper_id="datacite:1",
+        title="Example",
+        doi="10.9999/example",
+        abstract="",
+        year=2024,
+        venue="",
+        source="datacite",
+    )
+
+    crossref = Paper(
+        paper_id="crossref:1",
+        title="Example",
+        doi="HTTPS://doi.org/10.9999/example",
+        abstract=None,
+        year=2024,
+        venue="",
+        source="crossref",
+    )
+
+    merged = PaperMergeService().merge([datacite, crossref])
+
+    assert merged.doi == "10.9999/example"
+    assert merged.primary_source == "crossref"
+    assert merged.provenance.field_sources["doi"].source == "crossref"
+
+
+def test_merge_tie_breaker_abstract_prefers_longer() -> None:
+    secondary = Paper(
+        paper_id="secondary",
+        title="Example",
+        doi=None,
+        abstract="Short abstract.",
+        year=None,
+        venue=None,
+        source="secondary",
+    )
+
+    primary = Paper(
+        paper_id="primary",
+        title="Example",
+        doi=None,
+        abstract="This is a much longer abstract used for tie breaking.",
+        year=None,
+        venue=None,
+        source="primary",
+    )
+
+    merged = PaperMergeService().merge([secondary, primary])
+
+    assert merged.abstract == "This is a much longer abstract used for tie breaking."
+    assert merged.provenance.field_sources["abstract"].source == "primary"
+
+
+def test_merge_authors_tie_breaker_prefers_more_authors() -> None:
+    openalex = Paper(
+        paper_id="openalex:1",
+        title="Example",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="openalex",
+        authors=["Alice"],
+    )
+
+    semanticscholar = Paper(
+        paper_id="s2:1",
+        title="Example",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="semanticscholar",
+        authors=["Alice", "Bob"],
+    )
+
+    merged = PaperMergeService().merge([openalex, semanticscholar])
+
+    assert merged.authors == ["Alice", "Bob"]
+    assert merged.provenance.field_sources["authors"].source == "semanticscholar"
+
+
+def test_primary_source_when_no_doi_uses_title_evidence_or_rule() -> None:
+    crossref = Paper(
+        paper_id="crossref:1",
+        title="",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="crossref",
+    )
+
+    openalex = Paper(
+        paper_id="openalex:1",
+        title="Determined Title",
+        doi=None,
+        abstract=None,
+        year=None,
+        venue=None,
+        source="openalex",
+    )
+
+    merged = PaperMergeService().merge([crossref, openalex])
+
+    assert merged.title == "Determined Title"
+    assert merged.primary_source == "openalex"
+    assert merged.provenance.field_sources["title"].source == "openalex"
+
+
+def test_tie_handling_updates_selected_evidence() -> None:
+    first = Paper(
+        paper_id="p1",
+        title="Example",
+        doi=None,
+        abstract="Short",
+        year=None,
+        venue=None,
+        source="unknown",
+    )
+
+    second = Paper(
+        paper_id="p2",
+        title="Example",
+        doi=None,
+        abstract="Longer abstract text",  # wins tie breaker
+        year=None,
+        venue=None,
+        source="unknown",
+    )
+
+    third = Paper(
+        paper_id="p3",
+        title="Example",
+        doi=None,
+        abstract="Longest abstract text so far",  # should win after second
+        year=None,
+        venue=None,
+        source="unknown",
+    )
+
+    merged = PaperMergeService().merge([first, second, third])
+
+    assert merged.abstract == "Longest abstract text so far"
+    assert merged.provenance.field_sources["abstract"].source == "unknown"
