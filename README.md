@@ -8,12 +8,24 @@ A Python library providing a clean local knowledge retrieval system for tens of 
 
 - **OpenAlex** for discovery metadata
 - **Unpaywall** for full-text retrieval (primary)
-- **Title-based preprint servers** (fallback; no ID-based lookups)
 - **GROBID** for PDF → TEI extraction
 - **Deterministic TEI chunking**
 - **ChromaDB** as the vector index/search engine (no extra reranker)
 - **Postgres** for metadata + chunks + provenance
 - **Docker** for external dependencies/services (Postgres, GROBID)
+
+### High-level API
+
+The package exposes a simplified session-scoped API:
+
+- `search_papers(query, k=5, min_year=None, max_year=None)`
+- `search_paper_by_doi(doi)`
+- `search_paper_by_title(title)`
+- `gather_evidence(query)`
+- `search_citations(paper_id)`
+- `clear_papers_and_evidence()`
+
+Each function uses dedicated service clients (OpenAlex, Semantic Scholar, Unpaywall, and OpenCitations) and stores results only for the current session.
 
 ## Requirements
 
@@ -162,7 +174,7 @@ make down
 
 ```
 retrieval/
-├── acquisition/     # PDF downloading, Unpaywall, preprint servers
+├── acquisition/     # PDF downloading, Unpaywall
 ├── discovery/       # OpenAlex client
 ├── index/           # ChromaDB indexing and search
 ├── parsing/         # GROBID client, TEI chunking
