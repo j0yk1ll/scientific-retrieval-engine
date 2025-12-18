@@ -53,3 +53,26 @@ def test_opencitations_returns_empty_on_not_found(monkeypatch):
     client = OpenCitationsClient(session=session)
 
     assert client.citations("missing") == []
+
+
+def test_opencitations_normalizes_doi_inputs(monkeypatch):
+    session = requests.Session()
+    calls = []
+    responses = [
+        DummyResponse(200, json_data=[{"citing": "a", "cited": "b", "creation": None}]),
+        DummyResponse(200, json_data=[{"citing": "a", "cited": "b", "creation": None}]),
+    ]
+
+    def fake_request(method, url, timeout=None, **kwargs):
+        calls.append(url)
+        return responses.pop(0)
+
+    monkeypatch.setattr(session, "request", fake_request)
+
+    client = OpenCitationsClient(session=session)
+
+    client.citations("https://doi.org/10.1000/xyz")
+    client.citations("10.1000/xyz")
+
+    assert len(calls) == 2
+    assert calls[0] == calls[1]
