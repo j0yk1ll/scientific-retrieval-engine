@@ -222,6 +222,68 @@ def test_merge_authors_tie_breaker_prefers_more_authors() -> None:
     assert merged.provenance.field_sources["authors"].source == "semanticscholar"
 
 
+def test_merge_respects_custom_source_priority_for_key_fields() -> None:
+    crossref = Paper(
+        paper_id="crossref:doi",
+        title="Example",
+        doi="10.1000/custom",
+        abstract=None,
+        year=2024,
+        venue="Crossref Venue",
+        source="crossref",
+    )
+
+    openalex = Paper(
+        paper_id="openalex:doi",
+        title="Example",
+        doi="10.1000/custom",
+        abstract=None,
+        year=2023,
+        venue="OpenAlex Venue",
+        source="openalex",
+    )
+
+    merged = PaperMergeService(source_priority=["openalex", "crossref"]).merge(
+        [crossref, openalex]
+    )
+
+    assert merged.doi == "10.1000/custom"
+    assert merged.year == 2023
+    assert merged.venue == "OpenAlex Venue"
+    assert merged.provenance.field_sources["year"].source == "openalex"
+    assert merged.provenance.field_sources["venue"].source == "openalex"
+
+
+def test_merge_default_priority_is_preserved_for_key_fields() -> None:
+    crossref = Paper(
+        paper_id="crossref:doi",
+        title="Example",
+        doi="10.1000/default",
+        abstract=None,
+        year=2025,
+        venue="Crossref Venue",
+        source="crossref",
+    )
+
+    openalex = Paper(
+        paper_id="openalex:doi",
+        title="Example",
+        doi="10.1000/default",
+        abstract=None,
+        year=2024,
+        venue="OpenAlex Venue",
+        source="openalex",
+    )
+
+    merged = PaperMergeService().merge([crossref, openalex])
+
+    assert merged.doi == "10.1000/default"
+    assert merged.year == 2025
+    assert merged.venue == "Crossref Venue"
+    assert merged.provenance.field_sources["year"].source == "crossref"
+    assert merged.provenance.field_sources["venue"].source == "crossref"
+
+
 def test_primary_source_when_no_doi_uses_title_evidence_or_rule() -> None:
     crossref = Paper(
         paper_id="crossref:1",

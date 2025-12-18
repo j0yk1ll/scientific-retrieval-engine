@@ -12,11 +12,19 @@ DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar"
 class PaperMergeService:
     """Merge multiple records for the same paper into a single enriched record."""
 
-    def __init__(self, *, source_priority: Sequence[str] | None = None) -> None:
-        self.source_priority_order = list(source_priority or DEFAULT_SOURCE_PRIORITY)
-        self.source_priority = {
-            source: idx for idx, source in enumerate(self.source_priority_order)
-        }
+    def __init__(
+        self, *, source_priority: Sequence[str | Sequence[str]] | None = None
+    ) -> None:
+        self.source_priority_order = self._normalize_priority_spec(
+            source_priority or DEFAULT_SOURCE_PRIORITY
+        )
+        self.source_priority: Dict[str, int] = {}
+        for idx, entry in enumerate(self.source_priority_order):
+            if isinstance(entry, (list, tuple, set)):
+                for source in entry:
+                    self.source_priority[source] = idx
+            else:
+                self.source_priority[entry] = idx
 
     def merge(self, papers: List[Paper]) -> Paper:
         if not papers:
@@ -26,12 +34,16 @@ class PaperMergeService:
         provenance = self._build_provenance(papers)
 
         field_priorities = {
-            "doi": DEFAULT_SOURCE_PRIORITY,
-            "year": DEFAULT_SOURCE_PRIORITY,
-            "venue": DEFAULT_SOURCE_PRIORITY,
-            "url": DEFAULT_SOURCE_PRIORITY,
-            "abstract": ("openalex", "semanticscholar"),
-            "authors": (("openalex", "semanticscholar"), "crossref", "datacite"),
+            "doi": self.source_priority_order,
+            "year": self.source_priority_order,
+            "venue": self.source_priority_order,
+            "url": self.source_priority_order,
+            "abstract": self._normalize_priority_spec(
+                (("openalex", "semanticscholar"), *self.source_priority_order)
+            ),
+            "authors": self._normalize_priority_spec(
+                (("openalex", "semanticscholar"), *self.source_priority_order)
+            ),
         }
 
         selections: Dict[str, Tuple[Any, PaperEvidence | None]] = {}
@@ -255,6 +267,25 @@ class PaperMergeService:
             value, evidence = selections.get(field_name, (None, None))
             if evidence and predicate(value):
                 provenance.field_sources[field_name] = evidence
+
+    @staticmethod
+    def _normalize_priority_spec(
+        spec: Sequence[str | Sequence[str]],
+    ) -> Tuple[Tuple[str, ...], ...]:
+        normalized: List[Tuple[str, ...]] = []
+        seen: set[str] = set()
+
+        for entry in spec:
+            if isinstance(entry, (list, tuple, set)):
+                group = tuple(source for source in entry if source not in seen)
+            else:
+                group = (entry,) if entry not in seen else ()
+
+            if group:
+                normalized.append(group)
+                seen.update(group)
+
+        return tuple(normalized)
 
     @staticmethod
     def _is_non_empty(value: Any) -> bool:
