@@ -9,9 +9,11 @@ from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_
 from .clients.semanticscholar import SemanticScholarClient
 from .models import Citation, Paper
 from .services.opencitations_service import OpenCitationsService
+from .services.paper_enrichment_service import PaperEnrichmentService
 from .services.search_service import PaperSearchService
 from .services.openalex_service import OpenAlexService
 from .services.semanticscholar_service import SemanticScholarService
+from .services.unpaywall_service import UnpaywallService
 from .settings import RetrievalSettings
 from .session import SessionIndex
 
@@ -73,6 +75,17 @@ class RetrievalClient:
         else:
             self._unpaywall_client = None
 
+        self._unpaywall_service = (
+            UnpaywallService(client=self._unpaywall_client)
+            if self._unpaywall_client
+            else None
+        )
+        self._paper_enrichment_service = (
+            PaperEnrichmentService(unpaywall=self._unpaywall_service)
+            if self._unpaywall_service
+            else None
+        )
+
     def search_papers(
         self, query: str, k: int = 5, min_year: Optional[int] = None, max_year: Optional[int] = None
     ) -> List[Paper]:
@@ -86,6 +99,8 @@ class RetrievalClient:
         """Search for a paper by DOI across configured services."""
 
         papers = self._search_service.search_by_doi(doi)
+        if self._paper_enrichment_service:
+            papers = [self._paper_enrichment_service.enrich(paper) for paper in papers]
         self.session_index.add_papers(papers)
         return papers
 
