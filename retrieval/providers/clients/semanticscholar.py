@@ -9,7 +9,7 @@ from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
 from retrieval.core.identifiers import normalize_doi
 
 
-DEFAULT_FIELDS = "paperId,externalIds,doi,title,abstract,year,venue,authors.name,url"
+DEFAULT_FIELDS = "paperId,externalIds,title,abstract,year,venue,authors.name,url"
 
 
 @dataclass
