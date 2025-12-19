@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
-from retrieval.identifiers import normalize_doi
-from retrieval.models import Paper, PaperEvidence, PaperProvenance
+from retrieval.core.identifiers import normalize_doi
+from retrieval.core.models import Paper, PaperEvidence, PaperProvenance
 
 
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")

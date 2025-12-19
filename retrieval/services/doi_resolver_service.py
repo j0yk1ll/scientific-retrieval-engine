@@ -17,10 +17,10 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Set
 
-from retrieval.identifiers import normalize_title
-from retrieval.matching import jaccard, title_tokens
-from retrieval.clients.crossref import CrossrefClient
-from retrieval.clients.datacite import DataCiteClient
+from retrieval.core.identifiers import normalize_title
+from retrieval.core.matching import jaccard, title_tokens
+from retrieval.providers.clients.crossref import CrossrefClient
+from retrieval.providers.clients.datacite import DataCiteClient
 
 logger = logging.getLogger(__name__)
 

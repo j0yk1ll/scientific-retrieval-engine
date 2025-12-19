@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Iterable, Set
 
-from retrieval.identifiers import normalize_title
+from retrieval.core.identifiers import normalize_title
 
 
 def title_tokens(title: str | None) -> Set[str]:

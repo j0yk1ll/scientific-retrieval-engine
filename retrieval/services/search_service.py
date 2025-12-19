@@ -4,18 +4,18 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from retrieval.adapters.paper_adapters import (
+from retrieval.providers.adapters import (
     crossref_work_to_paper,
     datacite_work_to_paper,
     openalex_work_to_paper,
     semanticscholar_paper_to_paper,
 )
-from retrieval.clients.crossref import CrossrefClient
-from retrieval.clients.datacite import DataCiteClient
-from retrieval.clients.openalex import OpenAlexClient
-from retrieval.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
-from retrieval.identifiers import normalize_doi, normalize_title
-from retrieval.models import Paper
+from retrieval.providers.clients.crossref import CrossrefClient
+from retrieval.providers.clients.datacite import DataCiteClient
+from retrieval.providers.clients.openalex import OpenAlexClient
+from retrieval.providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
+from retrieval.core.identifiers import normalize_doi, normalize_title
+from retrieval.core.models import Paper
 from retrieval.services.paper_merge_service import PaperMergeService
 from .doi_resolver_service import DoiResolverService
 

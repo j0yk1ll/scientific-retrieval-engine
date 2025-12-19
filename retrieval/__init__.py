@@ -7,7 +7,7 @@ from typing import List, Optional
 import atexit
 
 from .api import RetrievalClient
-from .models import Citation, Paper
+from .core.models import Citation, Paper
 
 _default_client: Optional[RetrievalClient] = None
 _clear_callback_registered = False

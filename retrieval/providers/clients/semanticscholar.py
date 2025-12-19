@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from retrieval.clients.base import BaseHttpClient, NotFoundError
-from retrieval.identifiers import normalize_doi
+from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
+from retrieval.core.identifiers import normalize_doi
 
 
 DEFAULT_FIELDS = "paperId,externalIds,doi,title,abstract,year,venue,authors.name,url"

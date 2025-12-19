@@ -24,19 +24,19 @@ from typing import List, Optional
 
 import requests
 
-from .clients.crossref import CrossrefClient
-from .clients.datacite import DataCiteClient
-from .clients.openalex import OpenAlexClient
-from .clients.opencitations import OpenCitationsClient
-from .clients.semanticscholar import SemanticScholarClient
-from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
-from .models import Citation, Paper
+from .core.models import Citation, Paper
+from .core.session import SessionIndex
+from .core.settings import RetrievalSettings
+from .providers.clients.crossref import CrossrefClient
+from .providers.clients.datacite import DataCiteClient
+from .providers.clients.openalex import OpenAlexClient
+from .providers.clients.opencitations import OpenCitationsClient
+from .providers.clients.semanticscholar import SemanticScholarClient
+from .providers.clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .services.doi_resolver_service import DoiResolverService
 from .services.paper_enrichment_service import PaperEnrichmentService
 from .services.paper_merge_service import PaperMergeService
 from .services.search_service import PaperSearchService
-from .settings import RetrievalSettings
-from .session import SessionIndex
 
 
 class RetrievalClient:

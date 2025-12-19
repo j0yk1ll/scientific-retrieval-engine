@@ -1,4 +1,4 @@
-from retrieval.clients.datacite import DataCiteWork
+from retrieval.providers.clients.datacite import DataCiteWork
 from retrieval.services.search_service import PaperSearchService
 
 
