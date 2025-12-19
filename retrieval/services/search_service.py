@@ -259,8 +259,11 @@ class PaperSearchService:
         if normalized_doi or not paper.title:
             return None
 
-        candidate_tokens = self._tokenize_title(normalize_title(paper.title))
+        normalized_title = normalize_title(paper.title)
+        candidate_tokens = self._tokenize_title(normalized_title)
         if not candidate_tokens:
+            return None
+        if len(candidate_tokens) <= 3 or len(normalized_title) <= 25:
             return None
 
         prefix = self._title_prefix(candidate_tokens)
