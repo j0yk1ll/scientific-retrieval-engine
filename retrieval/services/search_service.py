@@ -453,9 +453,6 @@ class PaperSearchService:
         best_score = 0.0
 
         for key, grouped_papers in grouped.items():
-            if key.startswith("doi:"):
-                continue
-
             representative = grouped_papers[0]
             if not representative.title:
                 continue
