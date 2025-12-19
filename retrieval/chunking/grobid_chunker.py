@@ -45,6 +45,7 @@ class GrobidChunker:
     """Turn GROBID TEI output into reproducible text chunks."""
 
     VERSION = "1"
+    CHUNK_DELIMITER = "\n\n---\n\n"
 
     def __init__(
         self, paper_id: str, tei_xml: str, *, encoding_name: str | None = None
@@ -60,7 +61,8 @@ class GrobidChunker:
 
         Character offsets are measured against the concatenated chunk stream produced
         by this method, providing a stable ordering without implying absolute TEI
-        character positions.
+        character positions. Chunks are separated in the conceptual stream by
+        ``CHUNK_DELIMITER``.
         """
 
         chunks: List[GrobidChunk] = []
@@ -105,6 +107,9 @@ class GrobidChunker:
 
                 chunk_text = header_prefix + "\n\n".join(current_parts)
                 chunk_tokens = self._count_tokens(chunk_text)
+
+                if chunks:
+                    running_offset += len(self.CHUNK_DELIMITER)
 
                 chunk = GrobidChunk(
                     chunk_id=f"{self.paper_id}-chunk-{chunk_index}",
@@ -253,4 +258,3 @@ class _WhitespaceEncoding:
 
     def decode(self, tokens: List[str]) -> str:
         return " ".join(tokens)
-
