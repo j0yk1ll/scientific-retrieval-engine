@@ -2,6 +2,8 @@ import requests
 
 from retrieval.api import RetrievalClient
 from retrieval.clients.crossref import CrossrefClient
+from retrieval.clients.openalex import OpenAlexClient
+from retrieval.clients.semanticscholar import SemanticScholarClient
 from retrieval.settings import RetrievalSettings
 
 
@@ -27,10 +29,11 @@ def test_crossref_client_uses_shared_session(monkeypatch):
 
     monkeypatch.setattr(CrossrefClient, "_request", fake_request)
     monkeypatch.setattr(
-        "retrieval.services.openalex_service.OpenAlexService.search", lambda self, *a, **k: ([], None)
+        OpenAlexClient, "search_works", lambda self, *a, **k: ([], None)
     )
     monkeypatch.setattr(
-        "retrieval.services.semanticscholar_service.SemanticScholarService.search",
+        SemanticScholarClient,
+        "search_papers",
         lambda self, *a, **k: [],
     )
 
@@ -67,10 +70,11 @@ def test_search_by_title_smoke(monkeypatch):
 
     monkeypatch.setattr(CrossrefClient, "_request", fake_request)
     monkeypatch.setattr(
-        "retrieval.services.openalex_service.OpenAlexService.search", lambda self, *a, **k: ([], None)
+        OpenAlexClient, "search_works", lambda self, *a, **k: ([], None)
     )
     monkeypatch.setattr(
-        "retrieval.services.semanticscholar_service.SemanticScholarService.search",
+        SemanticScholarClient,
+        "search_papers",
         lambda self, *a, **k: [],
     )
 

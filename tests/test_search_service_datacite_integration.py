@@ -1,24 +1,24 @@
-from retrieval.models import Paper
+from retrieval.clients.datacite import DataCiteWork
 from retrieval.services.search_service import PaperSearchService
 
 
-class StubOpenAlexService:
-    def search(self, *args, **kwargs):
+class StubOpenAlexClient:
+    def search_works(self, *args, **kwargs):
         return [], None
 
-    def get_by_doi(self, doi):
+    def get_work_by_doi(self, doi):
         return None
 
 
-class StubSemanticScholarService:
-    def search(self, *args, **kwargs):
+class StubSemanticScholarClient:
+    def search_papers(self, *args, **kwargs):
         return []
 
-    def get_by_doi(self, doi):
+    def get_by_doi(self, doi, **kwargs):
         return None
 
 
-class StubCrossrefService:
+class StubCrossrefClient:
     def __init__(self, *, search_results=None, doi_result=None):
         self._search_results = search_results or []
         self._doi_result = doi_result
@@ -26,11 +26,11 @@ class StubCrossrefService:
     def search_by_title(self, title, *, rows=5, from_year=None, until_year=None):
         return self._search_results[:rows]
 
-    def get_by_doi(self, doi):
+    def works_by_doi(self, doi):
         return self._doi_result
 
 
-class StubDataCiteService:
+class StubDataCiteClient:
     def __init__(self, *, search_results=None, doi_result=None):
         self._search_results = search_results or []
         self._doi_result = doi_result
@@ -48,23 +48,20 @@ class StubResolver:
 
 
 def test_search_by_doi_returns_datacite_when_primary_sources_missing():
-    datacite_paper = Paper(
-        paper_id="datacite:1",
+    datacite_paper = DataCiteWork(
         title="Deterministic DOI",
         doi="10.1234/missing",
-        abstract=None,
         year=2020,
         venue="Data Archive",
-        source="datacite",
         url="https://doi.org/10.1234/missing",
         authors=["Alex Example"],
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService(),
-        semanticscholar=StubSemanticScholarService(),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(doi_result=datacite_paper),
+        openalex=StubOpenAlexClient(),
+        semanticscholar=StubSemanticScholarClient(),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(doi_result=datacite_paper),
         doi_resolver=StubResolver(),
     )
 
@@ -75,25 +72,23 @@ def test_search_by_doi_returns_datacite_when_primary_sources_missing():
 
 
 def test_search_by_title_appends_datacite_candidates():
-    datacite_candidate = Paper(
-        paper_id="datacite-search",
+    datacite_candidate = DataCiteWork(
         title="Title Missing Elsewhere",
         doi="10.5555/datacite",
-        abstract=None,
         year=2022,
         venue="Repository",
-        source="datacite",
         authors=["Pat Lee"],
+        url=None,
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService(),
-        semanticscholar=StubSemanticScholarService(),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(search_results=[datacite_candidate]),
+        openalex=StubOpenAlexClient(),
+        semanticscholar=StubSemanticScholarClient(),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(search_results=[datacite_candidate]),
         doi_resolver=StubResolver(),
     )
 
     results = service.search_by_title("Title Missing Elsewhere", k=3)
 
-    assert datacite_candidate in results
+    assert any(result.doi == "10.5555/datacite" and result.source == "datacite" for result in results)

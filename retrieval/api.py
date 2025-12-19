@@ -31,16 +31,10 @@ from .clients.opencitations import OpenCitationsClient
 from .clients.semanticscholar import SemanticScholarClient
 from .clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .models import Citation, Paper
-from .services.crossref_service import CrossrefService
-from .services.datacite_service import DataCiteService
 from .services.doi_resolver_service import DoiResolverService
-from .services.opencitations_service import OpenCitationsService
 from .services.paper_enrichment_service import PaperEnrichmentService
 from .services.paper_merge_service import PaperMergeService
 from .services.search_service import PaperSearchService
-from .services.openalex_service import OpenAlexService
-from .services.semanticscholar_service import SemanticScholarService
-from .services.unpaywall_service import UnpaywallService
 from .settings import RetrievalSettings
 from .session import SessionIndex
 
@@ -60,7 +54,7 @@ class RetrievalClient:
         *,
         session: Optional[requests.Session] = None,
         search_service: Optional[PaperSearchService] = None,
-        opencitations_service: Optional[OpenCitationsService] = None,
+        opencitations_client: Optional[OpenCitationsClient] = None,
         session_index: Optional[SessionIndex] = None,
         unpaywall_client: Optional[UnpaywallClient] = None,
     ) -> None:
@@ -76,53 +70,45 @@ class RetrievalClient:
             base_url=self.settings.openalex_base_url,
             timeout=self.settings.timeout,
         )
-        openalex_service = OpenAlexService(openalex_client)
 
         crossref_client = CrossrefClient(
             session=self.session,
             timeout=self.settings.timeout,
             base_url=self.settings.crossref_base_url,
         )
-        crossref_service = CrossrefService(crossref_client)
 
         datacite_client = DataCiteClient(
             session=self.session,
             timeout=self.settings.timeout,
             base_url=self.settings.datacite_base_url,
         )
-        datacite_service = DataCiteService(datacite_client)
 
-        doi_resolver = DoiResolverService(crossref=crossref_service, datacite=datacite_service)
+        doi_resolver = DoiResolverService(crossref=crossref_client, datacite=datacite_client)
 
         semanticscholar_client = SemanticScholarClient(
             session=self.session,
             base_url=self.settings.semanticscholar_base_url,
             timeout=self.settings.timeout,
         )
-        semanticscholar_service = SemanticScholarService(semanticscholar_client)
 
         merge_service = PaperMergeService(
             source_priority=["crossref", "datacite", "openalex", "semanticscholar"]
         )
 
         self._search_service = search_service or PaperSearchService(
-            openalex=openalex_service,
-            semanticscholar=semanticscholar_service,
-            crossref=crossref_service,
-            datacite=datacite_service,
+            openalex=openalex_client,
+            semanticscholar=semanticscholar_client,
+            crossref=crossref_client,
+            datacite=datacite_client,
             doi_resolver=doi_resolver,
             merge_service=merge_service,
         )
 
-        if opencitations_service is not None:
-            self._opencitations_service = opencitations_service
-        else:
-            opencitations_client = OpenCitationsClient(
-                session=self.session,
-                timeout=self.settings.timeout,
-                base_url=self.settings.opencitations_base_url,
-            )
-            self._opencitations_service = OpenCitationsService(opencitations_client)
+        self._opencitations_client = opencitations_client or OpenCitationsClient(
+            session=self.session,
+            timeout=self.settings.timeout,
+            base_url=self.settings.opencitations_base_url,
+        )
 
         if unpaywall_client is not None:
             self._unpaywall_client = unpaywall_client
@@ -138,14 +124,9 @@ class RetrievalClient:
         else:
             self._unpaywall_client = None
 
-        self._unpaywall_service = (
-            UnpaywallService(client=self._unpaywall_client)
-            if self._unpaywall_client
-            else None
-        )
         self._paper_enrichment_service = (
-            PaperEnrichmentService(unpaywall=self._unpaywall_service)
-            if self._unpaywall_service
+            PaperEnrichmentService(unpaywall_client=self._unpaywall_client)
+            if self._unpaywall_client
             else None
         )
 
@@ -195,7 +176,7 @@ class RetrievalClient:
     def search_citations(self, paper_id: str) -> List[Citation]:
         """Search OpenCitations for citations of the given paper identifier (e.g., DOI)."""
 
-        return self._opencitations_service.citations(paper_id)
+        return self._opencitations_client.citations(paper_id)
 
     def resolve_full_text(self, *, doi: str, title: str) -> Optional[FullTextCandidate]:
         """Attempt to resolve full-text sources when Unpaywall is enabled."""

@@ -19,8 +19,8 @@ from typing import List, Optional, Set
 
 from retrieval.identifiers import normalize_title
 from retrieval.matching import jaccard, title_tokens
-from retrieval.services.crossref_service import CrossrefService
-from retrieval.services.datacite_service import DataCiteService
+from retrieval.clients.crossref import CrossrefClient
+from retrieval.clients.datacite import DataCiteClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +35,12 @@ class DoiResolverService:
     def __init__(
         self,
         *,
-        crossref: Optional[CrossrefService] = None,
-        datacite: Optional[DataCiteService] = None,
+        crossref: Optional[CrossrefClient] = None,
+        datacite: Optional[DataCiteClient] = None,
         min_similarity: float = 0.9,
     ) -> None:
-        self.crossref = crossref or CrossrefService()
-        self.datacite = datacite if datacite is not None else DataCiteService()
+        self.crossref = crossref or CrossrefClient()
+        self.datacite = datacite if datacite is not None else DataCiteClient()
         self.min_similarity = min_similarity
 
     def resolve_doi_from_title(

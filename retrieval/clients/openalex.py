@@ -52,6 +52,19 @@ class OpenAlexClient(BaseHttpClient):
         encoded = quote(external_id, safe="")
         return self._get_work_by_path(f"/works/{encoded}", identifier=external_id)
 
+    def get_work_by_doi(self, doi: str) -> Optional[OpenAlexWork]:
+        """Fetch a work by DOI using external-ID lookup with filter fallback."""
+
+        normalized_doi = normalize_doi(doi)
+        if not normalized_doi:
+            return None
+
+        doi_url = f"https://doi.org/{normalized_doi}"
+        work = self.get_work_by_external_id(doi_url)
+        if work is None:
+            work = self.get_work_by_doi_filter(doi_url)
+        return work
+
     def get_work_by_doi_filter(self, doi_url: str) -> Optional[OpenAlexWork]:
         """Fetch a work using the DOI filter fallback."""
 
