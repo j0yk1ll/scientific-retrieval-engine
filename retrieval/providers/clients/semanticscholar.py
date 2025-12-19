@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
+from retrieval.providers.clients.base import (
+    BaseHttpClient,
+    NotFoundError,
+    RateLimitedError,
+    RequestRejectedError,
+)
 from retrieval.core.identifiers import normalize_doi
 
 
@@ -57,6 +62,43 @@ class SemanticScholarClient(BaseHttpClient):
         response = self._request("GET", "/paper/search", params=params)
         payload = response.json()
         return [self._normalize_paper(item) for item in payload.get("data", []) if isinstance(item, dict)]
+
+    def search_papers_advanced(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+        min_year: Optional[int] = None,
+        max_year: Optional[int] = None,
+        fields: str = DEFAULT_FIELDS,
+    ) -> List[SemanticScholarPaper]:
+        payload: Dict[str, Any] = {
+            "query": query,
+            "limit": limit,
+            "fields": fields,
+        }
+
+        year_filters: List[str] = []
+        if min_year is not None:
+            year_filters.append(f">={min_year}")
+        if max_year is not None:
+            year_filters.append(f"<={max_year}")
+        if year_filters:
+            payload["year"] = ",".join(year_filters)
+
+        try:
+            response = self._request("POST", "/paper/search/bulk", json=payload)
+        except (NotFoundError, RateLimitedError, RequestRejectedError):
+            return self.search_papers(
+                query,
+                limit=limit,
+                min_year=min_year,
+                max_year=max_year,
+                fields=fields,
+            )
+
+        data = response.json()
+        return [self._normalize_paper(item) for item in data.get("data", []) if isinstance(item, dict)]
 
     def get_by_doi(
         self, doi: str, *, fields: str = DEFAULT_FIELDS
