@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from retrieval.chunking import PaperChunkerService
+from retrieval.services import PaperChunkerService
 
 
 def load_sample_tei() -> str:

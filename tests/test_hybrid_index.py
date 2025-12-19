@@ -4,7 +4,7 @@ from typing import Sequence
 
 import pytest
 
-from retrieval.chunking import PaperChunk
+from retrieval.services import PaperChunk
 from retrieval.hybrid import (
     BM25Index,
     Chunk,

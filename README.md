@@ -64,7 +64,7 @@ print(papers[0].doi)  # May be upgraded via Crossref/DataCite
 GROBID TEI output can be chunked and indexed for lexical + vector retrieval:
 
 ```python
-from retrieval.chunking import PaperChunkerService
+from retrieval.services import PaperChunkerService
 from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 tei_xml = "<TEI>...</TEI>"  # GROBID response
