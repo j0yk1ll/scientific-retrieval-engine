@@ -52,6 +52,9 @@ class PaperSearchService:
         enable_soft_grouping: bool = True,
         soft_grouping_threshold: float = 0.82,
         soft_grouping_prefix_tokens: int = 6,
+        candidate_multiplier: int = 5,
+        enable_openalex_no_stem_pass: bool = True,
+        enable_semanticscholar_hyphen_pass: bool = True,
     ) -> None:
         self.openalex = openalex or OpenAlexClient()
         self.semanticscholar = semanticscholar or SemanticScholarClient()
@@ -64,6 +67,9 @@ class PaperSearchService:
         self.enable_soft_grouping = enable_soft_grouping
         self.soft_grouping_threshold = max(soft_grouping_threshold, 0.82)
         self.soft_grouping_prefix_tokens = soft_grouping_prefix_tokens
+        self.candidate_multiplier = max(1, candidate_multiplier)
+        self.enable_openalex_no_stem_pass = enable_openalex_no_stem_pass
+        self.enable_semanticscholar_hyphen_pass = enable_semanticscholar_hyphen_pass
 
     def search(
         self,
@@ -99,8 +105,7 @@ class PaperSearchService:
 
         _ = use_openalex_cursor, openalex_extra_pages
 
-        multiplier = 5
-        per_pass = k * multiplier
+        per_pass = k * self.candidate_multiplier
 
         grouped: Dict[str, List[Paper]] = {}
         order: List[str] = []
@@ -118,21 +123,22 @@ class PaperSearchService:
         openalex_results = [openalex_work_to_paper(work) for work in openalex_works]
         self._append_to_groups(openalex_results, grouped, order)
 
-        openalex_no_stem_filters = {
-            **date_filters,
-            "title_and_abstract.search.no_stem": quoted_query,
-        }
-        try:
-            openalex_no_stem, _ = self.openalex.search_works(
-                "", per_page=per_pass, filters=openalex_no_stem_filters
-            )
-        except ClientError as exc:
-            logger.warning("OpenAlex no-stem search failed: %s", exc)
-            openalex_no_stem = []
-        openalex_no_stem_results = [
-            openalex_work_to_paper(work) for work in openalex_no_stem
-        ]
-        self._append_to_groups(openalex_no_stem_results, grouped, order)
+        if self.enable_openalex_no_stem_pass:
+            openalex_no_stem_filters = {
+                **date_filters,
+                "title_and_abstract.search.no_stem": quoted_query,
+            }
+            try:
+                openalex_no_stem, _ = self.openalex.search_works(
+                    "", per_page=per_pass, filters=openalex_no_stem_filters
+                )
+            except ClientError as exc:
+                logger.warning("OpenAlex no-stem search failed: %s", exc)
+                openalex_no_stem = []
+            openalex_no_stem_results = [
+                openalex_work_to_paper(work) for work in openalex_no_stem
+            ]
+            self._append_to_groups(openalex_no_stem_results, grouped, order)
 
         try:
             if hasattr(self.semanticscholar, "search_papers_advanced"):
@@ -158,7 +164,7 @@ class PaperSearchService:
         self._append_to_groups(semantic_results, grouped, order)
 
         normalized_query = query
-        if "-" in query:
+        if self.enable_semanticscholar_hyphen_pass and "-" in query:
             normalized_query = self._normalize_hyphens(query)
             normalized_phrase = self._quote_phrase(normalized_query)
             try:
