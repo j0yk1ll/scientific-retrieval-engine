@@ -132,3 +132,80 @@ def test_soft_grouping_merges_subtitle_punctuation_variants():
     assert len(raw) == 2
     assert len(merged) == 1
     assert set(merged[0].provenance.sources) == {"openalex", "semanticscholar"}
+
+
+def test_soft_grouping_merges_minor_word_swaps():
+    openalex_paper = Paper(
+        paper_id="oa:2",
+        title="Efficient transformers for long document classification in medicine",
+        doi=None,
+        abstract=None,
+        year=2022,
+        venue=None,
+        source="openalex",
+        authors=["Ada Lovelace"],
+    )
+
+    semanticscholar_paper = Paper(
+        paper_id="s2:2",
+        title="Efficient transformers for long document classification medicine in",
+        doi=None,
+        abstract=None,
+        year=2022,
+        venue=None,
+        source="semanticscholar",
+        authors=["Ada Lovelace"],
+    )
+
+    service = PaperSearchService(
+        openalex=StubOpenAlexService([openalex_paper]),
+        semanticscholar=StubSemanticScholarService([semanticscholar_paper]),
+        crossref=StubCrossrefService(),
+        datacite=StubDataCiteService(),
+        doi_resolver=StubDoiResolver(),
+        enable_soft_grouping=True,
+        soft_grouping_threshold=0.82,
+    )
+
+    merged, raw = service.search_with_raw("efficient transformers", k=5)
+
+    assert len(raw) == 2
+    assert len(merged) == 1
+
+
+def test_soft_grouping_skips_ambiguous_short_titles():
+    openalex_paper = Paper(
+        paper_id="oa:3",
+        title="AI",
+        doi=None,
+        abstract=None,
+        year=2020,
+        venue=None,
+        source="openalex",
+        authors=["Ada Lovelace"],
+    )
+
+    semanticscholar_paper = Paper(
+        paper_id="s2:3",
+        title="AI",
+        doi=None,
+        abstract=None,
+        year=2021,
+        venue=None,
+        source="semanticscholar",
+        authors=["Grace Hopper"],
+    )
+
+    service = PaperSearchService(
+        openalex=StubOpenAlexService([openalex_paper]),
+        semanticscholar=StubSemanticScholarService([semanticscholar_paper]),
+        crossref=StubCrossrefService(),
+        datacite=StubDataCiteService(),
+        doi_resolver=StubDoiResolver(),
+        enable_soft_grouping=True,
+    )
+
+    merged, raw = service.search_with_raw("AI", k=5)
+
+    assert len(raw) == 2
+    assert len(merged) == 2

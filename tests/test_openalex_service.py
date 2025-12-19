@@ -71,6 +71,18 @@ def test_get_by_doi_falls_back_to_filter_when_external_id_fails():
     assert session.calls[1]["params"] == {"filter": f"doi:{doi_url}"}
 
 
+def test_get_work_by_doi_filter_uses_filter_param_and_returns_work():
+    payload = _load_fixture("openalex_work_sample.json")
+    session = _CapturingSession([_make_response(200, {"results": [payload]})])
+    client = OpenAlexClient(session=session)
+
+    work = client.get_work_by_doi_filter("https://doi.org/10.1234/example")
+
+    assert work is not None
+    assert session.calls[0]["url"].endswith("/works")
+    assert session.calls[0]["params"] == {"filter": "doi:https://doi.org/10.1234/example"}
+
+
 def test_get_work_by_external_id_encodes_path_and_logs_non_200(caplog):
     doi_url = "https://doi.org/10.5555/abc:def/ghi"
     session = _CapturingSession([_make_response(403)])

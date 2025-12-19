@@ -42,6 +42,38 @@ def test_merge_prefers_doi_and_tracks_field_sources() -> None:
     assert merged.provenance.field_sources["paper_id"].source == "crossref"
 
 
+def test_merge_primary_source_falls_back_to_counts_when_identifiers_missing() -> None:
+    openalex = Paper(
+        paper_id="",
+        title="",
+        doi=None,
+        abstract="OpenAlex abstract.",
+        year=2020,
+        venue="OpenAlex Venue",
+        source="openalex",
+        url="https://openalex.org/W1",
+        is_oa=True,
+        authors=["Ada Lovelace"],
+    )
+
+    semanticscholar = Paper(
+        paper_id="",
+        title="",
+        doi=None,
+        abstract=None,
+        year=2021,
+        venue="S2 Venue",
+        source="semanticscholar",
+        url="https://semanticscholar.org/paper/1",
+        authors=["Grace Hopper", "Ada Lovelace"],
+    )
+
+    merged = PaperMergeService().merge([openalex, semanticscholar])
+
+    assert merged.primary_source == "openalex"
+    assert merged.source == "openalex"
+
+
 def test_merge_uses_authors_from_best_available_record() -> None:
     primary = Paper(
         paper_id="primary",
