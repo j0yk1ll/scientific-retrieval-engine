@@ -250,7 +250,7 @@ class PaperMergeService:
                 counts.items(),
                 key=lambda item: (
                     -item[1],
-                    self._source_rank(item[0], self.source_priority_order),
+                    self._source_rank(item[0], self.priority_groups),
                     item[0],
                 ),
             )
@@ -323,4 +323,3 @@ def merge_papers(papers: List[Paper]) -> Paper:
     """Convenience wrapper for merging without instantiating the service."""
 
     return PaperMergeService().merge(papers)
-
