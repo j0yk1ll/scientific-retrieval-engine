@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
+from retrieval.providers.clients.base import ClientError
 from retrieval.providers.adapters import (
     crossref_work_to_paper,
     datacite_work_to_paper,
@@ -97,9 +98,13 @@ class PaperSearchService:
         grouped: Dict[str, List[Paper]] = {}
         order: List[str] = []
 
-        openalex_works, cursor = self._search_openalex(
-            query, per_page=k, min_year=min_year, max_year=max_year
-        )
+        try:
+            openalex_works, cursor = self._search_openalex(
+                query, per_page=k, min_year=min_year, max_year=max_year
+            )
+        except ClientError as exc:
+            logger.warning("OpenAlex search failed: %s", exc)
+            openalex_works, cursor = [], None
         openalex_results = [openalex_work_to_paper(work) for work in openalex_works]
         self._append_to_groups(openalex_results, grouped, order)
 
@@ -119,13 +124,17 @@ class PaperSearchService:
             self._append_to_groups(more_results, grouped, order)
             pages_to_fetch -= 1
 
-        semantic_records = self.semanticscholar.search_papers(
-            query,
-            limit=k,
-            min_year=min_year,
-            max_year=max_year,
-            fields=DEFAULT_FIELDS,
-        )
+        try:
+            semantic_records = self.semanticscholar.search_papers(
+                query,
+                limit=k,
+                min_year=min_year,
+                max_year=max_year,
+                fields=DEFAULT_FIELDS,
+            )
+        except ClientError as exc:
+            logger.warning("Semantic Scholar search failed: %s", exc)
+            semantic_records = []
         semantic_results = [semanticscholar_paper_to_paper(record) for record in semantic_records]
         self._append_to_groups(semantic_results, grouped, order)
 

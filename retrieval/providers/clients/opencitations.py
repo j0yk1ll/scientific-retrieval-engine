@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import List
 
-from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
+from retrieval.providers.clients.base import BaseHttpClient, ClientError, NotFoundError
 from retrieval.core.identifiers import normalize_doi
 from retrieval.core.models import Citation
 
@@ -26,7 +26,7 @@ class OpenCitationsClient(BaseHttpClient):
 
         try:
             response = self._request("GET", f"/citations/{normalized_paper_id}")
-        except NotFoundError:
+        except (NotFoundError, ClientError):
             return []
 
         payload = response.json()
