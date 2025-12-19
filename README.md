@@ -65,7 +65,7 @@ GROBID TEI output can be chunked and indexed for lexical + vector retrieval:
 
 ```python
 from retrieval.services import PaperChunkerService
-from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+from retrieval.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 tei_xml = "<TEI>...</TEI>"  # GROBID response
 chunks = PaperChunkerService("demo-paper", tei_xml).chunk(max_tokens=400)
@@ -87,7 +87,7 @@ results = retriever.search("introduction")
 Combine lexical and vector search across any chunk collection:
 
 ```python
-from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+from retrieval.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 chunks = [
     Chunk(text="Transformer models excel at sequence tasks"),
