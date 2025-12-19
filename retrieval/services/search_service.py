@@ -5,6 +5,8 @@ import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from retrieval.providers.clients.base import ClientError
+from retrieval.hybrid_search.bm25_index import BM25Index
+from retrieval.hybrid_search.models import Chunk
 from retrieval.providers.adapters import (
     crossref_work_to_paper,
     datacite_work_to_paper,
@@ -95,55 +97,99 @@ class PaperSearchService:
         if not query:
             return [], []
 
+        _ = use_openalex_cursor, openalex_extra_pages
+
+        multiplier = 5
+        per_pass = k * multiplier
+
         grouped: Dict[str, List[Paper]] = {}
         order: List[str] = []
 
+        date_filters = self._build_openalex_filters(min_year=min_year, max_year=max_year)
+        quoted_query = self._quote_phrase(query)
+
         try:
-            openalex_works, cursor = self._search_openalex(
-                query, per_page=k, min_year=min_year, max_year=max_year
+            openalex_works, _ = self.openalex.search_works(
+                quoted_query, per_page=per_pass, filters=date_filters or None
             )
         except ClientError as exc:
             logger.warning("OpenAlex search failed: %s", exc)
-            openalex_works, cursor = [], None
+            openalex_works = []
         openalex_results = [openalex_work_to_paper(work) for work in openalex_works]
         self._append_to_groups(openalex_results, grouped, order)
 
-        pages_to_fetch = openalex_extra_pages
-        if use_openalex_cursor and pages_to_fetch == 0:
-            pages_to_fetch = 1
-
-        while cursor and pages_to_fetch > 0:
-            more_works, cursor = self._search_openalex(
-                query,
-                per_page=k,
-                min_year=min_year,
-                max_year=max_year,
-                cursor=cursor,
+        openalex_no_stem_filters = {
+            **date_filters,
+            "title_and_abstract.search.no_stem": quoted_query,
+        }
+        try:
+            openalex_no_stem, _ = self.openalex.search_works(
+                "", per_page=per_pass, filters=openalex_no_stem_filters
             )
-            more_results = [openalex_work_to_paper(work) for work in more_works]
-            self._append_to_groups(more_results, grouped, order)
-            pages_to_fetch -= 1
+        except ClientError as exc:
+            logger.warning("OpenAlex no-stem search failed: %s", exc)
+            openalex_no_stem = []
+        openalex_no_stem_results = [
+            openalex_work_to_paper(work) for work in openalex_no_stem
+        ]
+        self._append_to_groups(openalex_no_stem_results, grouped, order)
 
         try:
-            semantic_records = self.semanticscholar.search_papers(
-                query,
-                limit=k,
-                min_year=min_year,
-                max_year=max_year,
-                fields=DEFAULT_FIELDS,
-            )
+            if hasattr(self.semanticscholar, "search_papers_advanced"):
+                semantic_records = self.semanticscholar.search_papers_advanced(
+                    quoted_query,
+                    limit=per_pass,
+                    min_year=min_year,
+                    max_year=max_year,
+                    fields=DEFAULT_FIELDS,
+                )
+            else:
+                semantic_records = self.semanticscholar.search_papers(
+                    quoted_query,
+                    limit=per_pass,
+                    min_year=min_year,
+                    max_year=max_year,
+                    fields=DEFAULT_FIELDS,
+                )
         except ClientError as exc:
             logger.warning("Semantic Scholar search failed: %s", exc)
             semantic_records = []
         semantic_results = [semanticscholar_paper_to_paper(record) for record in semantic_records]
         self._append_to_groups(semantic_results, grouped, order)
 
-        merged_results = [
-            self.merge_service.merge(grouped[key]) for key in order
-        ][:k]
-        raw_results = [paper for key in order for paper in grouped[key]] if include_raw else []
+        normalized_query = query
+        if "-" in query:
+            normalized_query = self._normalize_hyphens(query)
+            normalized_phrase = self._quote_phrase(normalized_query)
+            try:
+                if hasattr(self.semanticscholar, "search_papers_advanced"):
+                    semantic_normalized = self.semanticscholar.search_papers_advanced(
+                        normalized_phrase,
+                        limit=per_pass,
+                        min_year=min_year,
+                        max_year=max_year,
+                        fields=DEFAULT_FIELDS,
+                    )
+                else:
+                    semantic_normalized = self.semanticscholar.search_papers(
+                        normalized_phrase,
+                        limit=per_pass,
+                        min_year=min_year,
+                        max_year=max_year,
+                        fields=DEFAULT_FIELDS,
+                    )
+            except ClientError as exc:
+                logger.warning("Semantic Scholar normalized search failed: %s", exc)
+                semantic_normalized = []
+            semantic_normalized_results = [
+                semanticscholar_paper_to_paper(record) for record in semantic_normalized
+            ]
+            self._append_to_groups(semantic_normalized_results, grouped, order)
 
-        return merged_results, raw_results
+        merged_results = [self.merge_service.merge(grouped[key]) for key in order]
+        raw_results = [paper for key in order for paper in grouped[key]] if include_raw else []
+        reranked_results = self._rerank_locally(merged_results, query=query)
+        return reranked_results[:k], raw_results
 
     def search_by_doi(self, doi: str) -> List[Paper]:
         candidates: List[Paper] = []
@@ -188,6 +234,69 @@ class PaperSearchService:
             self._append_unique(datacite_candidates, resolved_results, seen)
 
         return resolved_results[:k]
+
+    def _rerank_locally(self, papers: List[Paper], *, query: str) -> List[Paper]:
+        if not papers:
+            return []
+
+        corpus: List[Chunk] = []
+        has_text = False
+        for idx, paper in enumerate(papers):
+            title = paper.title or ""
+            abstract = paper.abstract or ""
+            text = "\n".join(part for part in (title, abstract) if part).strip()
+            if text:
+                has_text = True
+            paper_id = paper.paper_id or f"paper-{idx}"
+            corpus.append(
+                Chunk(
+                    chunk_id=f"paper-{idx}",
+                    paper_id=paper_id,
+                    text=text,
+                    title=paper.title,
+                )
+            )
+
+        if not has_text:
+            return papers
+
+        bm25 = BM25Index()
+        bm25.add_many(corpus)
+        normalized_query = self._normalize_hyphens(query)
+        bm25_scores = {
+            chunk.chunk_id: score
+            for chunk, score in bm25.search(normalized_query, k=len(corpus))
+        }
+
+        exact_query = query.lower()
+        title_boost = 5.0
+        abstract_boost = 2.0
+
+        scored: List[Tuple[int, float, Paper]] = []
+        for idx, paper in enumerate(papers):
+            base_score = bm25_scores.get(f"paper-{idx}", 0.0)
+            title = (paper.title or "").lower()
+            abstract = (paper.abstract or "").lower()
+            if exact_query and exact_query in title:
+                base_score += title_boost
+            elif exact_query and exact_query in abstract:
+                base_score += abstract_boost
+            scored.append((idx, base_score, paper))
+
+        scored.sort(key=lambda item: (-item[1], item[0]))
+        return [paper for _, _, paper in scored]
+
+    def _quote_phrase(self, query: str) -> str:
+        cleaned = query.strip()
+        if not cleaned:
+            return ""
+        if cleaned.startswith('"') and cleaned.endswith('"'):
+            return cleaned
+        escaped = cleaned.replace('"', r"\"")
+        return f"\"{escaped}\""
+
+    def _normalize_hyphens(self, query: str) -> str:
+        return query.replace("-", " ")
 
     def _resolve_missing_dois(
         self, query_title: str, papers: List[Paper]
@@ -248,15 +357,20 @@ class PaperSearchService:
         max_year: Optional[int],
         cursor: str = "*",
     ) -> Tuple[List, Optional[str]]:
+        filters = self._build_openalex_filters(min_year=min_year, max_year=max_year)
+        return self.openalex.search_works(
+            query, per_page=per_page, cursor=cursor, filters=filters or None
+        )
+
+    def _build_openalex_filters(
+        self, *, min_year: Optional[int], max_year: Optional[int]
+    ) -> Dict[str, Any]:
         filters: Dict[str, Any] = {}
         if min_year:
             filters["from_publication_date"] = f"{min_year}-01-01"
         if max_year:
             filters["to_publication_date"] = f"{max_year}-12-31"
-
-        return self.openalex.search_works(
-            query, per_page=per_page, cursor=cursor, filters=filters or None
-        )
+        return filters
 
     def _append_unique(
         self, incoming: Iterable[Paper], target: List[Paper], seen: Set[str]
