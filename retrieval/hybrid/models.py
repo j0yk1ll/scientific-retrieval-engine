@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:  # pragma: no cover
-    from retrieval.chunking import GrobidChunk
+    from retrieval.chunking import PaperChunk
 
 
 @dataclass
@@ -19,28 +19,28 @@ class Chunk:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_grobid(
-        cls, grobid_chunk: "GrobidChunk", *, title: Optional[str] = None
+    def from_paper_chunk(
+        cls, paper_chunk: "PaperChunk", *, title: Optional[str] = None
     ) -> "Chunk":
-        """Adapt a :class:`~retrieval.chunking.GrobidChunk` into a retrievable chunk.
+        """Adapt a :class:`~retrieval.chunking.PaperChunk` into a retrievable chunk.
 
         The chunk metadata uses chunk-stream offsets rather than raw TEI character
         positions to avoid implying direct mapping back to the source XML.
         """
 
         metadata: Dict[str, Any] = {
-            "chunk_stream_start_char": grobid_chunk.stream_start_char,
-            "chunk_stream_end_char": grobid_chunk.stream_end_char,
-            "token_count": grobid_chunk.token_count,
-            "section_index": grobid_chunk.section_index,
+            "chunk_stream_start_char": paper_chunk.stream_start_char,
+            "chunk_stream_end_char": paper_chunk.stream_end_char,
+            "token_count": paper_chunk.token_count,
+            "section_index": paper_chunk.section_index,
         }
 
         return cls(
-            chunk_id=grobid_chunk.chunk_id,
-            paper_id=grobid_chunk.paper_id,
-            text=grobid_chunk.content,
+            chunk_id=paper_chunk.chunk_id,
+            paper_id=paper_chunk.paper_id,
+            text=paper_chunk.content,
             title=title,
-            section=grobid_chunk.section,
+            section=paper_chunk.section,
             metadata=metadata,
         )
 

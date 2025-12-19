@@ -3,12 +3,12 @@
 Example: chunk GROBID TEI XML and index for hybrid search
 ---------------------------------------------------------
 ```python
-from retrieval.chunking import GrobidChunker
+from retrieval.chunking import PaperChunkerService
 from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 tei_xml = "<TEI>...</TEI>"  # output from a GROBID server
-chunker = GrobidChunker(paper_id="demo-paper", tei_xml=tei_xml)
-grobid_chunks = chunker.chunk(max_tokens=400)
+chunker = PaperChunkerService(paper_id="demo-paper", tei_xml=tei_xml)
+paper_chunks = chunker.chunk(max_tokens=400)
 
 bm25 = BM25Index()
 
@@ -18,12 +18,16 @@ class StaticEmbedder:
 
 vector = FaissVectorIndex(StaticEmbedder())
 retriever = HybridRetriever(bm25, vector)
-retriever.index_chunks(Chunk.from_grobid(chunk) for chunk in grobid_chunks)
+retriever.index_chunks(Chunk.from_paper_chunk(chunk) for chunk in paper_chunks)
 results = retriever.search("introduction to transformers")
 ```
 """
 
-from .grobid_chunker import GrobidChunk, GrobidChunker, GrobidDocument, GrobidSection
+from .paper_chunker_service import (
+    PaperChunk,
+    PaperChunkerService,
+    PaperDocument,
+    PaperSection,
+)
 
-__all__ = ["GrobidChunk", "GrobidChunker", "GrobidDocument", "GrobidSection"]
-
+__all__ = ["PaperChunk", "PaperChunkerService", "PaperDocument", "PaperSection"]

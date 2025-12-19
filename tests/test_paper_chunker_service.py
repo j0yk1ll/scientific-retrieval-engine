@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from retrieval.chunking import GrobidChunker
+from retrieval.chunking import PaperChunkerService
 
 
 def load_sample_tei() -> str:
@@ -10,7 +10,7 @@ def load_sample_tei() -> str:
 
 def test_parse_document_structure():
     tei_xml = load_sample_tei()
-    chunker = GrobidChunker(paper_id="paper-123", tei_xml=tei_xml)
+    chunker = PaperChunkerService(paper_id="paper-123", tei_xml=tei_xml)
 
     document = chunker.document
     assert document.title == "Sample Paper Title"
@@ -22,7 +22,7 @@ def test_parse_document_structure():
 
 def test_chunking_preserves_section_headers_and_limits():
     tei_xml = load_sample_tei()
-    chunker = GrobidChunker(paper_id="paper-123", tei_xml=tei_xml)
+    chunker = PaperChunkerService(paper_id="paper-123", tei_xml=tei_xml)
 
     chunks = chunker.chunk(max_tokens=200, max_chars=220)
 
@@ -47,7 +47,7 @@ def test_chunking_preserves_section_headers_and_limits():
 
 def test_chunking_is_reproducible():
     tei_xml = load_sample_tei()
-    chunker = GrobidChunker(paper_id="paper-123", tei_xml=tei_xml)
+    chunker = PaperChunkerService(paper_id="paper-123", tei_xml=tei_xml)
 
     first_pass = chunker.chunk(max_tokens=150, max_chars=180)
     second_pass = chunker.chunk(max_tokens=150, max_chars=180)

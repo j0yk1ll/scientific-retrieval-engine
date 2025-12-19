@@ -4,7 +4,7 @@ from typing import Sequence
 
 import pytest
 
-from retrieval.chunking import GrobidChunk
+from retrieval.chunking import PaperChunk
 from retrieval.hybrid import (
     BM25Index,
     Chunk,
@@ -130,7 +130,7 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
     )
 
     grobid_chunks = [
-        GrobidChunk(
+        PaperChunk(
             chunk_id="chunk-1",
             paper_id="p1",
             section="Background",
@@ -140,7 +140,7 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
             token_count=4,
             section_index=0,
         ),
-        GrobidChunk(
+        PaperChunk(
             chunk_id="chunk-2",
             paper_id="p2",
             section="Cardiology",
@@ -152,7 +152,7 @@ def test_hybrid_prefers_semantic_match_when_lexical_absent():
         ),
     ]
 
-    chunks = [Chunk.from_grobid(chunk) for chunk in grobid_chunks]
+    chunks = [Chunk.from_paper_chunk(chunk) for chunk in grobid_chunks]
     hybrid.index_chunks(chunks)
 
     semantic_query = "heart attack treatment"
