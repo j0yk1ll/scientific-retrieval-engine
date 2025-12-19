@@ -5,7 +5,7 @@ from typing import Sequence
 import pytest
 
 from retrieval.services import PaperChunk
-from retrieval.hybrid import (
+from retrieval.hybrid_search import (
     BM25Index,
     Chunk,
     FaissVectorIndex,
