@@ -1,191 +1,99 @@
 #!/usr/bin/env python3
+"""Demo script to exercise the `retrieval` package functions.
+
+This script calls the high-level functions exported by the package and prints
+concise summaries of their outputs. It's intended for interactive testing.
+"""
+
 from __future__ import annotations
 
 import argparse
-from typing import Iterable, List, Tuple
+from typing import Any
 
-from retrieval.core.models import Paper
-from retrieval.providers.clients.base import ClientError
-from retrieval.providers.clients.semanticscholar import DEFAULT_FIELDS
-from retrieval.services.search_service import PaperSearchService
-
-SAMPLE_QUERIES = [
-    "contrastive self-supervised pre-training",
-    "semi-supervised learning with graph neural networks",
-    "data-driven discovery of differential equations",
-    "large language model retrieval augmented generation",
-    "protein structure prediction with transformers",
-]
+from retrieval import (
+    search_papers,
+    search_paper_by_doi,
+    search_paper_by_title,
+    gather_evidence,
+    search_citations,
+    clear_papers_and_evidence,
+)
 
 
-def _format_paper(paper: Paper, rank: int) -> str:
-    title = paper.title or "(untitled)"
-    year = f" ({paper.year})" if paper.year else ""
-    doi = f" DOI: {paper.doi}" if paper.doi else ""
-    return f"{rank:>2}. {title}{year} [{paper.source}]{doi}"
+def short_print_papers(papers: Any, label: str) -> None:
+    print(f"--- {label}: {len(papers) if papers is not None else 0} results ---")
+    if not papers:
+        print("No results.")
+        print()
+        return
+    for i, p in enumerate(papers[:5], start=1):
+        title = getattr(p, "title", "<no title>")
+        doi = getattr(p, "doi", "<no doi>")
+        source = getattr(p, "source", getattr(p, "primary_source", "<no source>"))
+        print(f"{i}. {title} — DOI: {doi} — source: {source}")
+    print()
 
 
-def _print_results(results: Iterable[Paper]) -> None:
-    for idx, paper in enumerate(results, start=1):
-        print(_format_paper(paper, idx))
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Demo the retrieval package functions.")
+    parser.add_argument("--query", default="graph neural networks", help="Free-text query for `search_papers` and `gather_evidence`")
+    parser.add_argument("--doi", default="10.1038/nrn3241", help="Sample DOI for DOI-based calls and citation lookup")
+    parser.add_argument("--title", default="Attention is all you need", help="Sample title for title lookup")
+    args = parser.parse_args()
 
-
-def _count_groups(service: PaperSearchService, papers: List[Paper]) -> Tuple[int, int]:
-    grouped: dict[str, list[Paper]] = {}
-    order: list[str] = []
-    service._append_to_groups(papers, grouped, order)
-    return len(grouped), len(papers)
-
-
-def _debug_counts(
-    service: PaperSearchService,
-    query: str,
-    *,
-    k: int,
-    min_year: int | None,
-    max_year: int | None,
-) -> None:
-    per_pass = k * service.candidate_multiplier
-    date_filters = service._build_openalex_filters(min_year=min_year, max_year=max_year)
-    quoted_query = service._quote_phrase(query)
-
+    # search_papers
     try:
-        openalex_results, _ = service.openalex.search_works(
-            quoted_query, per_page=per_pass, filters=date_filters or None
-        )
-    except ClientError as exc:
-        print(f"OpenAlex base pass failed: {exc}")
-        openalex_results = []
-    print(f"OpenAlex base pass: {len(openalex_results)}")
+        papers = search_papers(args.query, k=5)
+        short_print_papers(papers, f"search_papers('{args.query}')")
+    except Exception as e:  # pragma: no cover - demo runner
+        print("search_papers error:", e)
 
-    if service.enable_openalex_no_stem_pass:
-        openalex_no_stem_filters = {
-            **date_filters,
-            "title_and_abstract.search.no_stem": quoted_query,
-        }
-        try:
-            openalex_no_stem, _ = service.openalex.search_works(
-                "", per_page=per_pass, filters=openalex_no_stem_filters
-            )
-        except ClientError as exc:
-            print(f"OpenAlex no-stem pass failed: {exc}")
-            openalex_no_stem = []
-        print(f"OpenAlex no-stem pass: {len(openalex_no_stem)}")
-    else:
-        print("OpenAlex no-stem pass: disabled")
-
+    # search_paper_by_doi
     try:
-        if hasattr(service.semanticscholar, "search_papers_advanced"):
-            semantic_records = service.semanticscholar.search_papers_advanced(
-                quoted_query,
-                limit=per_pass,
-                min_year=min_year,
-                max_year=max_year,
-                fields=DEFAULT_FIELDS,
-            )
-        else:
-            semantic_records = service.semanticscholar.search_papers(
-                quoted_query,
-                limit=per_pass,
-                min_year=min_year,
-                max_year=max_year,
-                fields=DEFAULT_FIELDS,
-            )
-    except ClientError as exc:
-        print(f"Semantic Scholar base pass failed: {exc}")
-        semantic_records = []
-    print(f"Semantic Scholar base pass: {len(semantic_records)}")
+        doi_res = search_paper_by_doi(args.doi)
+        short_print_papers(doi_res, f"search_paper_by_doi('{args.doi}')")
+    except Exception as e:  # pragma: no cover - demo runner
+        print("search_paper_by_doi error:", e)
 
-    if service.enable_semanticscholar_hyphen_pass and "-" in query:
-        normalized_phrase = service._quote_phrase(service._normalize_hyphens(query))
-        try:
-            if hasattr(service.semanticscholar, "search_papers_advanced"):
-                semantic_normalized = service.semanticscholar.search_papers_advanced(
-                    normalized_phrase,
-                    limit=per_pass,
-                    min_year=min_year,
-                    max_year=max_year,
-                    fields=DEFAULT_FIELDS,
-                )
-            else:
-                semantic_normalized = service.semanticscholar.search_papers(
-                    normalized_phrase,
-                    limit=per_pass,
-                    min_year=min_year,
-                    max_year=max_year,
-                    fields=DEFAULT_FIELDS,
-                )
-        except ClientError as exc:
-            print(f"Semantic Scholar hyphen pass failed: {exc}")
-            semantic_normalized = []
-        print(f"Semantic Scholar hyphen pass: {len(semantic_normalized)}")
-    elif "-" in query:
-        print("Semantic Scholar hyphen pass: disabled")
+    # search_paper_by_title
+    try:
+        title_res = search_paper_by_title(args.title)
+        short_print_papers(title_res, f"search_paper_by_title('{args.title}')")
+    except Exception as e:  # pragma: no cover - demo runner
+        print("search_paper_by_title error:", e)
 
+    # gather_evidence
+    try:
+        evidence = gather_evidence(args.query)
+        print(f"--- gather_evidence('{args.query}') returned {len(evidence) if evidence else 0} items ---")
+        if evidence:
+            for i, ev in enumerate(evidence[:5], start=1):
+                print(f"{i}. {ev}")
+        print()
+    except Exception as e:  # pragma: no cover - demo runner
+        print("gather_evidence error:", e)
 
-def run_demo(args: argparse.Namespace) -> None:
-    service = PaperSearchService(
-        candidate_multiplier=args.candidate_multiplier,
-        enable_openalex_no_stem_pass=not args.disable_openalex_no_stem,
-        enable_semanticscholar_hyphen_pass=not args.disable_semantic_hyphen,
-    )
+    # search_citations
+    try:
+        citations = search_citations(args.doi)
+        print(f"--- search_citations('{args.doi}') returned {len(citations) if citations else 0} items ---")
+        if citations:
+            for i, c in enumerate(citations[:5], start=1):
+                if hasattr(c, "title"):
+                    print(f"{i}. {getattr(c, 'title')}")
+                else:
+                    print(f"{i}. {c}")
+        print()
+    except Exception as e:  # pragma: no cover - demo runner
+        print("search_citations error:", e)
 
-    queries = args.queries or SAMPLE_QUERIES
-    for query in queries:
-        print("=" * 80)
-        print(f"Query: {query}")
-        results, raw_results = service.search_with_raw(
-            query,
-            k=args.k,
-            min_year=args.min_year,
-            max_year=args.max_year,
-            include_raw=True,
-        )
-        print("Top reranked results:")
-        _print_results(results)
-        merged_count, raw_count = _count_groups(service, raw_results)
-        print(f"Merged groups: {merged_count} from {raw_count} raw records")
-
-        if args.debug:
-            print("-- Debug pass counts --")
-            _debug_counts(
-                service,
-                query,
-                k=args.k,
-                min_year=args.min_year,
-                max_year=args.max_year,
-            )
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Demo retrieval search session")
-    parser.add_argument("queries", nargs="*", help="Queries to run")
-    parser.add_argument("--k", type=int, default=5, help="Number of results to keep")
-    parser.add_argument(
-        "--candidate-multiplier",
-        type=int,
-        default=5,
-        help="Multiplier for upstream candidate fetches",
-    )
-    parser.add_argument("--min-year", type=int, help="Minimum publication year")
-    parser.add_argument("--max-year", type=int, help="Maximum publication year")
-    parser.add_argument(
-        "--disable-openalex-no-stem",
-        action="store_true",
-        help="Disable OpenAlex no-stem pass",
-    )
-    parser.add_argument(
-        "--disable-semantic-hyphen",
-        action="store_true",
-        help="Disable Semantic Scholar hyphen pass",
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Print per-pass counts and merged group totals",
-    )
-    return parser
+    # clear_papers_and_evidence
+    try:
+        clear_papers_and_evidence()
+        print("Cleared in-memory papers and evidence for this session.")
+    except Exception as e:  # pragma: no cover - demo runner
+        print("clear_papers_and_evidence error:", e)
 
 
 if __name__ == "__main__":
-    run_demo(build_parser().parse_args())
+    main()
