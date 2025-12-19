@@ -24,18 +24,20 @@ from typing import List, Optional
 
 import requests
 
-from .core.models import Citation, Paper
+from .core.models import Citation, EvidenceChunk, Paper
 from .core.identifiers import normalize_doi
 from .core.session import SessionIndex
 from .core.settings import RetrievalSettings
 from .providers.clients.crossref import CrossrefClient
 from .providers.clients.datacite import DataCiteClient
+from .providers.clients.grobid import GrobidClient
 from .providers.clients.openalex import OpenAlexClient
 from .providers.clients.opencitations import OpenCitationsClient
 from .providers.clients.semanticscholar import SemanticScholarClient
 from .providers.clients.base import ClientError
 from .providers.clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .services.doi_resolver_service import DoiResolverService
+from .services.evidence_service import EvidenceConfig, EvidenceService
 from .services.paper_enrichment_service import PaperEnrichmentService
 from .services.paper_merge_service import PaperMergeService
 from .services.search_service import PaperSearchService
@@ -137,6 +139,15 @@ class RetrievalClient:
             else None
         )
 
+        # Optional: only useful if a GROBID service is running.
+        # If you do not want full-text chunking, leave this as None.
+        self._grobid_client: GrobidClient | None = GrobidClient(session=self.session)
+        self._evidence_service = EvidenceService(
+            session=self.session,
+            grobid=self._grobid_client,
+            config=EvidenceConfig(),
+        )
+
     def search_papers(
         self, query: str, k: int = 5, min_year: Optional[int] = None, max_year: Optional[int] = None
     ) -> List[Paper]:
@@ -173,12 +184,18 @@ class RetrievalClient:
         self.session_index.add_papers(papers)
         return papers
 
-    def gather_evidence(self, query: str) -> List[Paper]:
-        """Gather evidence by searching and storing the resulting papers."""
+    def gather_evidence(self, query: str) -> List[EvidenceChunk]:
+        """Gather citeable evidence chunks (chunk text + originating paper reference)."""
 
         papers = self.search_papers(query)
-        self.session_index.evidence[query] = papers
-        return papers
+
+        # If Unpaywall is enabled, enrich papers so pdf_url is populated when possible.
+        if self._paper_enrichment_service:
+            papers = [self._paper_enrichment_service.enrich(paper) for paper in papers]
+
+        chunks = self._evidence_service.gather(papers)
+        self.session_index.evidence_chunks[query] = chunks
+        return chunks
 
     def search_citations(self, paper_id: str) -> List[Citation]:
         """Search OpenCitations for citations of the given paper identifier (e.g., DOI)."""
@@ -212,7 +229,10 @@ class RetrievalClient:
 
         paper_identifier = f"DOI:{normalized_doi}" if normalized_doi else cited_id
         try:
-            citing_papers = self._semanticscholar_client.get_citations(paper_identifier)
+            citing_papers = self._semanticscholar_client.get_citations(
+                paper_identifier,
+                limit=getattr(self.settings, "citation_limit", 500),
+            )
         except ClientError:
             return []
 
@@ -239,7 +259,10 @@ class RetrievalClient:
             work = self._openalex_client.get_work_by_doi(normalized_doi)
             if not work or not work.openalex_id:
                 return []
-            citing_works = self._openalex_client.get_citing_works(work.openalex_id)
+            citing_works = self._openalex_client.get_citing_works(
+                work.openalex_id,
+                max_pages=getattr(self.settings, "openalex_citation_max_pages", 5),
+            )
         except ClientError:
             return []
 

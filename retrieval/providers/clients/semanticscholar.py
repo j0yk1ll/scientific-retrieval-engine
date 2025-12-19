@@ -147,26 +147,51 @@ class SemanticScholarClient(BaseHttpClient):
         return self._normalize_paper(response.json())
 
     def get_citations(
-        self, paper_id: str, *, fields: str = "paperId,externalIds,doi"
+        self,
+        paper_id: str,
+        *,
+        fields: str = "paperId,externalIds,doi",
+        limit: int = 500,
+        page_size: int = 100,
     ) -> List[SemanticScholarPaper]:
         if not paper_id:
             return []
 
-        response = self._request(
-            "GET",
-            f"/paper/{paper_id}/citations",
-            params={"fields": fields},
-            headers=self._auth_headers(),
-        )
-        payload = response.json()
         results: List[SemanticScholarPaper] = []
-        for item in payload.get("data", []) or []:
-            if not isinstance(item, dict):
-                continue
-            citing = item.get("citingPaper")
-            if not isinstance(citing, dict):
-                continue
-            results.append(self._normalize_paper(citing))
+        offset = 0
+        page_size = max(1, min(page_size, 1000))
+        limit = max(1, limit)
+
+        while len(results) < limit:
+            response = self._request(
+                "GET",
+                f"/paper/{paper_id}/citations",
+                params={
+                    "fields": fields,
+                    "limit": min(page_size, limit - len(results)),
+                    "offset": offset,
+                },
+                headers=self._auth_headers(),
+            )
+            payload = response.json()
+            batch = payload.get("data", []) or []
+            if not batch:
+                break
+            for item in batch:
+                if not isinstance(item, dict):
+                    continue
+                citing = item.get("citingPaper")
+                if not isinstance(citing, dict):
+                    continue
+                results.append(self._normalize_paper(citing))
+                if len(results) >= limit:
+                    break
+            offset += len(batch)
+
+            # If the API returns fewer than requested, we are likely done.
+            if len(batch) < page_size:
+                break
+
         return results
 
     def _normalize_paper(self, data: Dict[str, Any]) -> SemanticScholarPaper:
