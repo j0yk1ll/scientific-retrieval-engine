@@ -186,7 +186,7 @@ class RetrievalClient:
         return papers
 
     def gather_evidence(self, query: str) -> List[Paper]:
-        """Gather evidence by searching and caching the resulting papers."""
+        """Gather evidence by searching and storing the resulting papers."""
 
         papers = self.search_papers(query)
         self.session_index.evidence[query] = papers
@@ -205,6 +205,6 @@ class RetrievalClient:
         return resolve_full_text(doi=doi, title=title, unpaywall_client=self._unpaywall_client)
 
     def clear_papers_and_evidence(self) -> None:
-        """Clear all cached papers and evidence for the current session."""
+        """Clear all papers and evidence for the current session."""
 
         self.session_index.reset()
