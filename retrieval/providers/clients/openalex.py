@@ -112,6 +112,40 @@ class OpenAlexClient(BaseHttpClient):
         next_cursor = payload.get("meta", {}).get("next_cursor")
         return works, next_cursor
 
+    def get_citing_works(
+        self,
+        openalex_work_id: str,
+        *,
+        per_page: int = 200,
+        cursor: str = "*",
+        max_pages: Optional[int] = None,
+    ) -> List[OpenAlexWork]:
+        if not openalex_work_id:
+            return []
+
+        works: List[OpenAlexWork] = []
+        seen_cursors = set()
+        page = 0
+        current_cursor = cursor
+        while True:
+            if max_pages is not None and page >= max_pages:
+                break
+            if current_cursor in seen_cursors:
+                break
+            seen_cursors.add(current_cursor)
+            page += 1
+            batch, next_cursor = self.search_works(
+                "",
+                per_page=per_page,
+                cursor=current_cursor,
+                filters={"cites": openalex_work_id},
+            )
+            works.extend(batch)
+            if not next_cursor:
+                break
+            current_cursor = next_cursor
+        return works
+
     def _get_work_by_path(self, path: str, *, identifier: str) -> Optional[OpenAlexWork]:
         try:
             response = self._request("GET", path)

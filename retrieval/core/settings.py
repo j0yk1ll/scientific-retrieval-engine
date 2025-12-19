@@ -20,8 +20,11 @@ class RetrievalSettings:
     crossref_base_url: Optional[str] = None
     datacite_base_url: Optional[str] = None
     semanticscholar_base_url: Optional[str] = None
+    semanticscholar_api_key: Optional[str] = None
     opencitations_base_url: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
+    enable_semanticscholar_citation_fallback: bool = False
+    enable_openalex_citation_fallback: bool = False
     session: Optional[requests.Session] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:

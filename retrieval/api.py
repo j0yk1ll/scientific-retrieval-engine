@@ -25,6 +25,7 @@ from typing import List, Optional
 import requests
 
 from .core.models import Citation, Paper
+from .core.identifiers import normalize_doi
 from .core.session import SessionIndex
 from .core.settings import RetrievalSettings
 from .providers.clients.crossref import CrossrefClient
@@ -32,6 +33,7 @@ from .providers.clients.datacite import DataCiteClient
 from .providers.clients.openalex import OpenAlexClient
 from .providers.clients.opencitations import OpenCitationsClient
 from .providers.clients.semanticscholar import SemanticScholarClient
+from .providers.clients.base import ClientError
 from .providers.clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
 from .services.doi_resolver_service import DoiResolverService
 from .services.paper_enrichment_service import PaperEnrichmentService
@@ -55,6 +57,8 @@ class RetrievalClient:
         session: Optional[requests.Session] = None,
         search_service: Optional[PaperSearchService] = None,
         opencitations_client: Optional[OpenCitationsClient] = None,
+        openalex_client: Optional[OpenAlexClient] = None,
+        semanticscholar_client: Optional[SemanticScholarClient] = None,
         session_index: Optional[SessionIndex] = None,
         unpaywall_client: Optional[UnpaywallClient] = None,
     ) -> None:
@@ -65,7 +69,7 @@ class RetrievalClient:
         self.session = client_session
         self.session_index = session_index or SessionIndex()
 
-        openalex_client = OpenAlexClient(
+        openalex_client = openalex_client or OpenAlexClient(
             session=self.session,
             base_url=self.settings.openalex_base_url,
             timeout=self.settings.timeout,
@@ -85,10 +89,11 @@ class RetrievalClient:
 
         doi_resolver = DoiResolverService(crossref=crossref_client, datacite=datacite_client)
 
-        semanticscholar_client = SemanticScholarClient(
+        semanticscholar_client = semanticscholar_client or SemanticScholarClient(
             session=self.session,
             base_url=self.settings.semanticscholar_base_url,
             timeout=self.settings.timeout,
+            api_key=self.settings.semanticscholar_api_key,
         )
 
         merge_service = PaperMergeService(
@@ -103,6 +108,8 @@ class RetrievalClient:
             doi_resolver=doi_resolver,
             merge_service=merge_service,
         )
+        self._openalex_client = openalex_client
+        self._semanticscholar_client = semanticscholar_client
 
         self._opencitations_client = opencitations_client or OpenCitationsClient(
             session=self.session,
@@ -176,7 +183,78 @@ class RetrievalClient:
     def search_citations(self, paper_id: str) -> List[Citation]:
         """Search OpenCitations for citations of the given paper identifier (e.g., DOI)."""
 
-        return self._opencitations_client.citations(paper_id)
+        citations = self._opencitations_client.citations(paper_id)
+        if citations:
+            return citations
+
+        normalized_doi = normalize_doi(paper_id)
+        cited_id = normalized_doi or (paper_id.strip() if paper_id else "")
+        if not cited_id:
+            return []
+
+        if self.settings.enable_semanticscholar_citation_fallback:
+            fallback = self._search_semanticscholar_citations(cited_id, normalized_doi)
+            if fallback:
+                return fallback
+
+        if self.settings.enable_openalex_citation_fallback:
+            fallback = self._search_openalex_citations(cited_id, normalized_doi)
+            if fallback:
+                return fallback
+
+        return []
+
+    def _search_semanticscholar_citations(
+        self, cited_id: str, normalized_doi: Optional[str]
+    ) -> List[Citation]:
+        if not cited_id:
+            return []
+
+        paper_identifier = f"DOI:{normalized_doi}" if normalized_doi else cited_id
+        try:
+            citing_papers = self._semanticscholar_client.get_citations(paper_identifier)
+        except ClientError:
+            return []
+
+        citations: List[Citation] = []
+        seen = set()
+        for paper in citing_papers:
+            citing_id = paper.doi or paper.paper_id
+            if not citing_id:
+                continue
+            key = (citing_id, cited_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append(Citation(citing=citing_id, cited=cited_id, creation=None))
+        return citations
+
+    def _search_openalex_citations(
+        self, cited_id: str, normalized_doi: Optional[str]
+    ) -> List[Citation]:
+        if not normalized_doi:
+            return []
+
+        try:
+            work = self._openalex_client.get_work_by_doi(normalized_doi)
+            if not work or not work.openalex_id:
+                return []
+            citing_works = self._openalex_client.get_citing_works(work.openalex_id)
+        except ClientError:
+            return []
+
+        citations: List[Citation] = []
+        seen = set()
+        for citing_work in citing_works:
+            citing_id = citing_work.doi or citing_work.openalex_id
+            if not citing_id:
+                continue
+            key = (citing_id, cited_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append(Citation(citing=citing_id, cited=cited_id, creation=None))
+        return citations
 
     def resolve_full_text(self, *, doi: str, title: str) -> Optional[FullTextCandidate]:
         """Attempt to resolve full-text sources when Unpaywall is enabled."""
