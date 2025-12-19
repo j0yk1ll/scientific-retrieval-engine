@@ -8,7 +8,7 @@ from retrieval.models import Paper
 from retrieval.services.paper_enrichment_service import PaperEnrichmentService
 
 
-class FakeUnpaywallService:
+class FakeUnpaywallClient:
     def __init__(self, record: UnpaywallRecord | None) -> None:
         self.record = record
         self.requested_doi: str | None = None
@@ -32,7 +32,7 @@ def test_enrich_adds_pdf_and_flags_open_access() -> None:
         ),
         oa_locations=[],
     )
-    enrichment = PaperEnrichmentService(unpaywall=FakeUnpaywallService(record))
+    enrichment = PaperEnrichmentService(unpaywall_client=FakeUnpaywallClient(record))
     paper = Paper(
         paper_id="1",
         title="Example",
@@ -50,7 +50,7 @@ def test_enrich_adds_pdf_and_flags_open_access() -> None:
 
 
 def test_enrich_is_noop_without_doi() -> None:
-    enrichment = PaperEnrichmentService(unpaywall=FakeUnpaywallService(None))
+    enrichment = PaperEnrichmentService(unpaywall_client=FakeUnpaywallClient(None))
     paper = Paper(
         paper_id="1",
         title="No DOI",

@@ -9,7 +9,6 @@ from urllib.parse import quote
 import requests
 
 from retrieval.clients.openalex import OpenAlexClient
-from retrieval.services.openalex_service import OpenAlexService
 
 
 class _CapturingSession:
@@ -43,11 +42,10 @@ def test_get_by_doi_resolves_via_external_id():
     payload = _load_fixture("openalex_work_sample.json")
     session = _CapturingSession([_make_response(200, payload)])
     client = OpenAlexClient(session=session)
-    service = OpenAlexService(client=client)
 
-    paper = service.get_by_doi("10.1234/example")
+    work = client.get_work_by_doi("10.1234/example")
 
-    assert paper is not None
+    assert work is not None
     doi_url = "https://doi.org/10.1234/example"
     expected_path = quote(doi_url, safe="")
     assert session.calls[0]["url"].endswith(f"/works/{expected_path}")
@@ -62,11 +60,10 @@ def test_get_by_doi_falls_back_to_filter_when_external_id_fails():
         ]
     )
     client = OpenAlexClient(session=session)
-    service = OpenAlexService(client=client)
 
-    paper = service.get_by_doi("10.1234/example")
+    work = client.get_work_by_doi("10.1234/example")
 
-    assert paper is not None
+    assert work is not None
     doi_url = "https://doi.org/10.1234/example"
     assert session.calls[1]["params"] == {"filter": f"doi:{doi_url}"}
 

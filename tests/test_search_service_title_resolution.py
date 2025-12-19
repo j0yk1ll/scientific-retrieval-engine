@@ -1,30 +1,31 @@
-from retrieval.models import Paper
+from retrieval.clients.crossref import CrossrefWork
+from retrieval.clients.openalex import OpenAlexWork
 from retrieval.services.search_service import PaperSearchService
 
 
-class StubOpenAlexService:
-    def __init__(self, papers):
-        self._papers = papers
+class StubOpenAlexClient:
+    def __init__(self, works):
+        self._works = works
 
-    def search(self, *args, **kwargs):
-        return self._papers, None
+    def search_works(self, *args, **kwargs):
+        return self._works, None
 
-    def get_by_doi(self, doi):
+    def get_work_by_doi(self, doi):
         return None
 
 
-class StubSemanticScholarService:
+class StubSemanticScholarClient:
     def __init__(self, papers):
         self._papers = papers
 
-    def search(self, *args, **kwargs):
+    def search_papers(self, *args, **kwargs):
         return list(self._papers)
 
-    def get_by_doi(self, doi):
+    def get_by_doi(self, doi, **kwargs):
         return None
 
 
-class StubCrossrefService:
+class StubCrossrefClient:
     def __init__(self, *, search_results, doi_result=None):
         self._search_results = search_results
         self._doi_result = doi_result
@@ -32,51 +33,47 @@ class StubCrossrefService:
     def search_by_title(self, title, *, rows=5, from_year=None, until_year=None):
         return self._search_results[:rows]
 
-    def get_by_doi(self, doi):
+    def works_by_doi(self, doi):
         return self._doi_result
 
 
 def test_search_by_title_resolves_missing_doi_and_upgrades_metadata():
-    missing_doi_paper = Paper(
-        paper_id="openalex:1",
-        title="Deterministic Title",
+    missing_doi_paper = OpenAlexWork(
+        openalex_id="W1",
+        openalex_url="https://openalex.org/W1",
         doi=None,
+        title="Deterministic Title",
         abstract=None,
         year=None,
         venue=None,
-        source="openalex",
         authors=["Casey Smith"],
+        referenced_works=[],
     )
 
-    canonical_paper = Paper(
-        paper_id="crossref:deterministic",
-        title="Deterministic Title",
+    canonical_paper = CrossrefWork(
         doi="10.5555/deterministic",
-        abstract=None,
+        title="Deterministic Title",
         year=2021,
         venue="Journal of Tests",
-        source="crossref",
         url="https://doi.org/10.5555/deterministic",
         authors=["Casey Smith"],
     )
 
     crossref_search_results = [
-        Paper(
-            paper_id="crossref-search",
-            title="Deterministic Title",
+        CrossrefWork(
             doi="10.5555/deterministic",
-            abstract=None,
+            title="Deterministic Title",
             year=2021,
             venue=None,
-            source="crossref",
             authors=["Casey Smith"],
+            url=None,
         )
     ]
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService([missing_doi_paper]),
-        semanticscholar=StubSemanticScholarService([]),
-        crossref=StubCrossrefService(search_results=crossref_search_results, doi_result=canonical_paper),
+        openalex=StubOpenAlexClient([missing_doi_paper]),
+        semanticscholar=StubSemanticScholarClient([]),
+        crossref=StubCrossrefClient(search_results=crossref_search_results, doi_result=canonical_paper),
     )
 
     results = service.search_by_title("Deterministic Title")

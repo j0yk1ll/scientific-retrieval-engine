@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
+from retrieval.adapters.paper_adapters import (
+    crossref_work_to_paper,
+    datacite_work_to_paper,
+    openalex_work_to_paper,
+    semanticscholar_paper_to_paper,
+)
+from retrieval.clients.crossref import CrossrefClient
+from retrieval.clients.datacite import DataCiteClient
+from retrieval.clients.openalex import OpenAlexClient
+from retrieval.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
 from retrieval.identifiers import normalize_doi, normalize_title
 from retrieval.models import Paper
 from retrieval.services.paper_merge_service import PaperMergeService
-
-from .crossref_service import CrossrefService
-from .datacite_service import DataCiteService
 from .doi_resolver_service import DoiResolverService
-from .openalex_service import OpenAlexService
-from .semanticscholar_service import SemanticScholarService
 
 
 logger = logging.getLogger(__name__)
@@ -35,20 +40,20 @@ class PaperSearchService:
     def __init__(
         self,
         *,
-        openalex: Optional[OpenAlexService] = None,
-        semanticscholar: Optional[SemanticScholarService] = None,
-        crossref: Optional[CrossrefService] = None,
-        datacite: Optional[DataCiteService] = None,
+        openalex: Optional[OpenAlexClient] = None,
+        semanticscholar: Optional[SemanticScholarClient] = None,
+        crossref: Optional[CrossrefClient] = None,
+        datacite: Optional[DataCiteClient] = None,
         doi_resolver: Optional[DoiResolverService] = None,
         merge_service: Optional[PaperMergeService] = None,
         enable_soft_grouping: bool = True,
         soft_grouping_threshold: float = 0.82,
         soft_grouping_prefix_tokens: int = 6,
     ) -> None:
-        self.openalex = openalex or OpenAlexService()
-        self.semanticscholar = semanticscholar or SemanticScholarService()
-        self.crossref = crossref or CrossrefService()
-        self.datacite = datacite or DataCiteService()
+        self.openalex = openalex or OpenAlexClient()
+        self.semanticscholar = semanticscholar or SemanticScholarClient()
+        self.crossref = crossref or CrossrefClient()
+        self.datacite = datacite or DataCiteClient()
         self.doi_resolver = doi_resolver or DoiResolverService(
             crossref=self.crossref, datacite=self.datacite
         )
@@ -92,9 +97,10 @@ class PaperSearchService:
         grouped: Dict[str, List[Paper]] = {}
         order: List[str] = []
 
-        openalex_results, cursor = self.openalex.search(
+        openalex_works, cursor = self._search_openalex(
             query, per_page=k, min_year=min_year, max_year=max_year
         )
+        openalex_results = [openalex_work_to_paper(work) for work in openalex_works]
         self._append_to_groups(openalex_results, grouped, order)
 
         pages_to_fetch = openalex_extra_pages
@@ -102,19 +108,25 @@ class PaperSearchService:
             pages_to_fetch = 1
 
         while cursor and pages_to_fetch > 0:
-            more_results, cursor = self.openalex.search(
+            more_works, cursor = self._search_openalex(
                 query,
                 per_page=k,
                 min_year=min_year,
                 max_year=max_year,
                 cursor=cursor,
             )
+            more_results = [openalex_work_to_paper(work) for work in more_works]
             self._append_to_groups(more_results, grouped, order)
             pages_to_fetch -= 1
 
-        semantic_results = self.semanticscholar.search(
-            query, limit=k, min_year=min_year, max_year=max_year
+        semantic_records = self.semanticscholar.search_papers(
+            query,
+            limit=k,
+            min_year=min_year,
+            max_year=max_year,
+            fields=DEFAULT_FIELDS,
         )
+        semantic_results = [semanticscholar_paper_to_paper(record) for record in semantic_records]
         self._append_to_groups(semantic_results, grouped, order)
 
         merged_results = [
@@ -128,14 +140,23 @@ class PaperSearchService:
         candidates: List[Paper] = []
         seen: Set[str] = set()
 
-        for result in (
-            self.crossref.get_by_doi(doi),
-            self.datacite.get_by_doi(doi),
-            self.openalex.get_by_doi(doi),
-            self.semanticscholar.get_by_doi(doi),
-        ):
-            if result:
-                self._append_unique([result], candidates, seen)
+        crossref_work = self.crossref.works_by_doi(doi)
+        if crossref_work:
+            self._append_unique([crossref_work_to_paper(crossref_work)], candidates, seen)
+
+        datacite_work = self.datacite.get_by_doi(doi)
+        if datacite_work:
+            self._append_unique([datacite_work_to_paper(datacite_work)], candidates, seen)
+
+        openalex_work = self.openalex.get_work_by_doi(doi)
+        if openalex_work:
+            self._append_unique([openalex_work_to_paper(openalex_work)], candidates, seen)
+
+        semantic_record = self.semanticscholar.get_by_doi(doi, fields=DEFAULT_FIELDS)
+        if semantic_record:
+            self._append_unique(
+                [semanticscholar_paper_to_paper(semantic_record)], candidates, seen
+            )
         return candidates
 
     def search_by_title(self, title: str, *, k: int = 5) -> List[Paper]:
@@ -144,11 +165,17 @@ class PaperSearchService:
         resolved_results, seen = self._resolve_missing_dois(title, initial_results)
 
         if len(resolved_results) < k:
-            crossref_candidates = self.crossref.search_by_title(title, rows=k)
+            crossref_candidates = [
+                crossref_work_to_paper(work)
+                for work in self.crossref.search_by_title(title, rows=k)
+            ]
             self._append_unique(crossref_candidates, resolved_results, seen)
 
         if len(resolved_results) < k:
-            datacite_candidates = self.datacite.search_by_title(title, rows=k)
+            datacite_candidates = [
+                datacite_work_to_paper(work)
+                for work in self.datacite.search_by_title(title, rows=k)
+            ]
             self._append_unique(datacite_candidates, resolved_results, seen)
 
         return resolved_results[:k]
@@ -186,16 +213,41 @@ class PaperSearchService:
         return resolved, seen
 
     def _fetch_canonical_by_doi(self, doi: str) -> Optional[Paper]:
-        for resolver in (
-            self.crossref.get_by_doi,
-            self.datacite.get_by_doi,
-            self.openalex.get_by_doi,
-            self.semanticscholar.get_by_doi,
-        ):
-            paper = resolver(doi)
-            if paper:
-                return paper
+        crossref_work = self.crossref.works_by_doi(doi)
+        if crossref_work:
+            return crossref_work_to_paper(crossref_work)
+
+        datacite_work = self.datacite.get_by_doi(doi)
+        if datacite_work:
+            return datacite_work_to_paper(datacite_work)
+
+        openalex_work = self.openalex.get_work_by_doi(doi)
+        if openalex_work:
+            return openalex_work_to_paper(openalex_work)
+
+        semantic_record = self.semanticscholar.get_by_doi(doi, fields=DEFAULT_FIELDS)
+        if semantic_record:
+            return semanticscholar_paper_to_paper(semantic_record)
         return None
+
+    def _search_openalex(
+        self,
+        query: str,
+        *,
+        per_page: int,
+        min_year: Optional[int],
+        max_year: Optional[int],
+        cursor: str = "*",
+    ) -> Tuple[List, Optional[str]]:
+        filters: Dict[str, Any] = {}
+        if min_year:
+            filters["from_publication_date"] = f"{min_year}-01-01"
+        if max_year:
+            filters["to_publication_date"] = f"{max_year}-12-31"
+
+        return self.openalex.search_works(
+            query, per_page=per_page, cursor=cursor, filters=filters or None
+        )
 
     def _append_unique(
         self, incoming: Iterable[Paper], target: List[Paper], seen: Set[str]

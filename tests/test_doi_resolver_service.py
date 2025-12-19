@@ -1,4 +1,5 @@
-from retrieval.models import Paper
+from retrieval.clients.crossref import CrossrefWork
+from retrieval.clients.datacite import DataCiteWork
 from retrieval.services.doi_resolver_service import DoiResolverService
 
 
@@ -20,31 +21,27 @@ class StubDataCiteService:
 
 def test_resolve_uses_title_match_and_author_overlap():
     title = "A Precise Study"
-    papers = [
-        Paper(
-            paper_id="1",
+    works = [
+        CrossrefWork(
             title=title,
             doi="10.1111/title-match",
-            abstract=None,
             year=2020,
             venue=None,
-            source="crossref",
             authors=["Alice Smith"],
+            url=None,
         ),
-        Paper(
-            paper_id="2",
+        CrossrefWork(
             title=title,
             doi="10.2222/wrong-author",
-            abstract=None,
             year=2020,
             venue=None,
-            source="crossref",
             authors=["Bob Jones"],
+            url=None,
         ),
     ]
 
     resolver = DoiResolverService(
-        crossref=StubCrossrefService(papers), datacite=StubDataCiteService([])
+        crossref=StubCrossrefService(works), datacite=StubDataCiteService([])
     )
 
     resolved = resolver.resolve_doi_from_title(title, expected_authors=["Alice Smith"])
@@ -54,22 +51,20 @@ def test_resolve_uses_title_match_and_author_overlap():
 
 def test_resolve_falls_back_to_datacite_when_crossref_missing():
     title = "A Precise Study"
-    crossref_papers: list[Paper] = []
-    datacite_papers = [
-        Paper(
-            paper_id="datacite-1",
+    crossref_works: list[CrossrefWork] = []
+    datacite_works = [
+        DataCiteWork(
             title=title,
             doi="10.9999/datacite",
-            abstract=None,
             year=2021,
             venue=None,
-            source="datacite",
             authors=["Dana Scully"],
+            url=None,
         )
     ]
 
     resolver = DoiResolverService(
-        crossref=StubCrossrefService(crossref_papers), datacite=StubDataCiteService(datacite_papers)
+        crossref=StubCrossrefService(crossref_works), datacite=StubDataCiteService(datacite_works)
     )
 
     resolved = resolver.resolve_doi_from_title(title, expected_authors=["Dana Scully"])
@@ -82,21 +77,19 @@ def test_resolve_accepts_near_exact_match_with_author_overlap():
     near_match_title = (
         "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma"
     )
-    papers = [
-        Paper(
-            paper_id="1",
+    works = [
+        CrossrefWork(
             title=near_match_title,
             doi="10.3333/near-match",
-            abstract=None,
             year=2022,
             venue=None,
-            source="crossref",
             authors=["Alice Smith"],
+            url=None,
         )
     ]
 
     resolver = DoiResolverService(
-        crossref=StubCrossrefService(papers), datacite=StubDataCiteService([])
+        crossref=StubCrossrefService(works), datacite=StubDataCiteService([])
     )
 
     resolved = resolver.resolve_doi_from_title(title, expected_authors=["Alice Smith"])
@@ -109,21 +102,19 @@ def test_resolve_rejects_near_match_without_author_overlap_when_expected():
     near_match_title = (
         "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma"
     )
-    papers = [
-        Paper(
-            paper_id="1",
+    works = [
+        CrossrefWork(
             title=near_match_title,
             doi="10.4444/wrong-author",
-            abstract=None,
             year=2022,
             venue=None,
-            source="crossref",
             authors=["Bob Jones"],
+            url=None,
         )
     ]
 
     resolver = DoiResolverService(
-        crossref=StubCrossrefService(papers), datacite=StubDataCiteService([])
+        crossref=StubCrossrefService(works), datacite=StubDataCiteService([])
     )
 
     resolved = resolver.resolve_doi_from_title(title, expected_authors=["Alice Smith"])

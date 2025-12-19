@@ -1,32 +1,34 @@
+from retrieval.clients.openalex import OpenAlexWork
+from retrieval.clients.semanticscholar import SemanticScholarPaper
 from retrieval.models import Paper
 from retrieval.services.search_service import PaperSearchService
 
 
-class StubOpenAlexService:
+class StubOpenAlexClient:
+    def __init__(self, works):
+        self._works = works
+
+    def search_works(self, *args, **kwargs):
+        return list(self._works), None
+
+
+class StubSemanticScholarClient:
     def __init__(self, papers):
         self._papers = papers
 
-    def search(self, *args, **kwargs):
-        return list(self._papers), None
-
-
-class StubSemanticScholarService:
-    def __init__(self, papers):
-        self._papers = papers
-
-    def search(self, *args, **kwargs):
+    def search_papers(self, *args, **kwargs):
         return list(self._papers)
 
 
-class StubCrossrefService:
+class StubCrossrefClient:
     def search_by_title(self, *args, **kwargs):
         return []
 
-    def get_by_doi(self, doi):
+    def works_by_doi(self, doi):
         return None
 
 
-class StubDataCiteService(StubCrossrefService):
+class StubDataCiteClient(StubCrossrefClient):
     pass
 
 
@@ -37,10 +39,10 @@ class StubDoiResolver:
 
 def test_group_key_does_not_fragment_on_first_author_ordering():
     service = PaperSearchService(
-        openalex=StubOpenAlexService([]),
-        semanticscholar=StubSemanticScholarService([]),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(),
+        openalex=StubOpenAlexClient([]),
+        semanticscholar=StubSemanticScholarClient([]),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(),
         doi_resolver=StubDoiResolver(),
     )
 
@@ -73,10 +75,10 @@ def test_group_key_does_not_fragment_on_first_author_ordering():
 
 def test_group_key_prefers_doi_like_paper_id_when_missing_doi():
     service = PaperSearchService(
-        openalex=StubOpenAlexService([]),
-        semanticscholar=StubSemanticScholarService([]),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(),
+        openalex=StubOpenAlexClient([]),
+        semanticscholar=StubSemanticScholarClient([]),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(),
         doi_resolver=StubDoiResolver(),
     )
 
@@ -95,33 +97,34 @@ def test_group_key_prefers_doi_like_paper_id_when_missing_doi():
 
 
 def test_soft_grouping_merges_subtitle_punctuation_variants():
-    openalex_paper = Paper(
-        paper_id="oa:1",
-        title="Deep learning: applications in medicine",
+    openalex_paper = OpenAlexWork(
+        openalex_id="W1",
+        openalex_url="https://openalex.org/W1",
         doi=None,
-        abstract=None,
+        title="Deep learning: applications in medicine",
         year=2022,
         venue=None,
-        source="openalex",
+        abstract=None,
         authors=["Ada Lovelace", "Grace Hopper"],
+        referenced_works=[],
     )
 
-    semanticscholar_paper = Paper(
+    semanticscholar_paper = SemanticScholarPaper(
         paper_id="s2:1",
-        title="Deep learning - applications in medicine",
         doi=None,
+        title="Deep learning - applications in medicine",
         abstract=None,
         year=2022,
         venue=None,
-        source="semanticscholar",
         authors=["Ada Lovelace", "Grace Hopper"],
+        url=None,
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService([openalex_paper]),
-        semanticscholar=StubSemanticScholarService([semanticscholar_paper]),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(),
+        openalex=StubOpenAlexClient([openalex_paper]),
+        semanticscholar=StubSemanticScholarClient([semanticscholar_paper]),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(),
         doi_resolver=StubDoiResolver(),
         enable_soft_grouping=True,
         soft_grouping_threshold=0.8,
@@ -135,33 +138,34 @@ def test_soft_grouping_merges_subtitle_punctuation_variants():
 
 
 def test_soft_grouping_merges_minor_word_swaps():
-    openalex_paper = Paper(
-        paper_id="oa:2",
-        title="Efficient transformers for long document classification in medicine",
+    openalex_paper = OpenAlexWork(
+        openalex_id="W2",
+        openalex_url="https://openalex.org/W2",
         doi=None,
-        abstract=None,
+        title="Efficient transformers for long document classification in medicine",
         year=2022,
         venue=None,
-        source="openalex",
+        abstract=None,
         authors=["Ada Lovelace"],
+        referenced_works=[],
     )
 
-    semanticscholar_paper = Paper(
+    semanticscholar_paper = SemanticScholarPaper(
         paper_id="s2:2",
-        title="Efficient transformers for long document classification medicine in",
         doi=None,
+        title="Efficient transformers for long document classification medicine in",
         abstract=None,
         year=2022,
         venue=None,
-        source="semanticscholar",
         authors=["Ada Lovelace"],
+        url=None,
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService([openalex_paper]),
-        semanticscholar=StubSemanticScholarService([semanticscholar_paper]),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(),
+        openalex=StubOpenAlexClient([openalex_paper]),
+        semanticscholar=StubSemanticScholarClient([semanticscholar_paper]),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(),
         doi_resolver=StubDoiResolver(),
         enable_soft_grouping=True,
         soft_grouping_threshold=0.82,
@@ -174,33 +178,34 @@ def test_soft_grouping_merges_minor_word_swaps():
 
 
 def test_soft_grouping_skips_ambiguous_short_titles():
-    openalex_paper = Paper(
-        paper_id="oa:3",
-        title="AI",
+    openalex_paper = OpenAlexWork(
+        openalex_id="W3",
+        openalex_url="https://openalex.org/W3",
         doi=None,
-        abstract=None,
+        title="AI",
         year=2020,
         venue=None,
-        source="openalex",
+        abstract=None,
         authors=["Ada Lovelace"],
+        referenced_works=[],
     )
 
-    semanticscholar_paper = Paper(
+    semanticscholar_paper = SemanticScholarPaper(
         paper_id="s2:3",
-        title="AI",
         doi=None,
+        title="AI",
         abstract=None,
         year=2021,
         venue=None,
-        source="semanticscholar",
         authors=["Grace Hopper"],
+        url=None,
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService([openalex_paper]),
-        semanticscholar=StubSemanticScholarService([semanticscholar_paper]),
-        crossref=StubCrossrefService(),
-        datacite=StubDataCiteService(),
+        openalex=StubOpenAlexClient([openalex_paper]),
+        semanticscholar=StubSemanticScholarClient([semanticscholar_paper]),
+        crossref=StubCrossrefClient(),
+        datacite=StubDataCiteClient(),
         doi_resolver=StubDoiResolver(),
         enable_soft_grouping=True,
     )

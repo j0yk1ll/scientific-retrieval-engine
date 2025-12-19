@@ -1,60 +1,60 @@
-from retrieval.models import Paper
+from retrieval.clients.openalex import OpenAlexWork
+from retrieval.clients.semanticscholar import SemanticScholarPaper
 from retrieval.services.search_service import PaperSearchService
 
 
-class StubOpenAlexService:
+class StubOpenAlexClient:
+    def __init__(self, works):
+        self._works = works
+
+    def search_works(self, *args, **kwargs):
+        return list(self._works), None
+
+
+class StubSemanticScholarClient:
     def __init__(self, papers):
         self._papers = papers
 
-    def search(self, *args, **kwargs):
-        return list(self._papers), None
-
-
-class StubSemanticScholarService:
-    def __init__(self, papers):
-        self._papers = papers
-
-    def search(self, *args, **kwargs):
+    def search_papers(self, *args, **kwargs):
         return list(self._papers)
 
 
-class StubCrossrefService:
+class StubCrossrefClient:
     def search_by_title(self, *args, **kwargs):
         return []
 
-    def get_by_doi(self, doi):
+    def works_by_doi(self, doi):
         return None
 
 
 def test_search_merges_duplicates_and_exposes_provenance():
-    openalex_paper = Paper(
-        paper_id="openalex:1",
-        title="Merged Paper",
+    openalex_work = OpenAlexWork(
+        openalex_id="W1",
+        openalex_url="https://openalex.org/W1",
         doi="10.9999/example",
-        abstract="OpenAlex abstract",
+        title="Merged Paper",
         year=2024,
         venue=None,
-        source="openalex",
-        url="https://openalex.org/W1",
+        abstract="OpenAlex abstract",
         authors=["Ada Lovelace"],
+        referenced_works=[],
     )
 
-    semantics_paper = Paper(
+    semantics_paper = SemanticScholarPaper(
         paper_id="s2:1",
-        title="Merged Paper",
         doi="10.9999/example",
+        title="Merged Paper",
         abstract=None,
         year=2024,
         venue="Conference X",
-        source="semanticscholar",
         url="https://semanticscholar.org/paper/1",
         authors=["Ada Lovelace"],
     )
 
     service = PaperSearchService(
-        openalex=StubOpenAlexService([openalex_paper]),
-        semanticscholar=StubSemanticScholarService([semantics_paper]),
-        crossref=StubCrossrefService(),
+        openalex=StubOpenAlexClient([openalex_work]),
+        semanticscholar=StubSemanticScholarClient([semantics_paper]),
+        crossref=StubCrossrefClient(),
     )
 
     merged_results = service.search("merged paper", k=5)
