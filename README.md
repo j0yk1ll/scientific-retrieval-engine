@@ -23,7 +23,7 @@ The package exposes a simplified, function-only interface:
 - `search_citations(paper_id)`
 - `clear_papers_and_evidence()`
 
-Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, Unpaywall, and OpenCitations) and caches papers/evidence only for the active session. Re-running `search_papers` with the same query can return new results as upstream sources evolve.
+Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, Unpaywall, and OpenCitations) and stores papers/evidence only for the active session. Re-running `search_papers` with the same query can return new results as upstream sources evolve.
 
 ### Supported inputs and scope
 
@@ -80,41 +80,6 @@ vector = FaissVectorIndex(StaticEmbedder())
 retriever = HybridRetriever(bm25, vector)
 retriever.index_chunks(Chunk.from_grobid(chunk) for chunk in chunks)
 results = retriever.search("introduction")
-```
-
-### Cached ingestion pipeline
-
-Use the built-in file cache to avoid re-processing PDFs when building hybrid retrievers:
-
-```python
-from pathlib import Path
-
-from retrieval.api import RetrievalClient
-from retrieval.cache import CachedPaperPipeline, DoiFileCache
-from retrieval.clients.grobid import GrobidClient
-from retrieval.hybrid import BM25Index, FaissVectorIndex, HybridRetriever
-
-class StaticEmbedder:
-    def embed(self, texts):
-        return [[0.0] * 8 for _ in texts]
-
-# Set up cache + ingestion pipeline
-cache = DoiFileCache(base_dir=Path(".cache/papers"))
-client = RetrievalClient()
-pipeline = CachedPaperPipeline(
-    cache=cache,
-    retrieval_client=client,
-    grobid_client=GrobidClient("http://localhost:8070"),
-    embedder=StaticEmbedder(),
-)
-
-artifacts = pipeline.ingest("10.5555/example.doi", pdf=Path("paper.pdf"))
-
-bm25 = BM25Index()
-vector = FaissVectorIndex(pipeline.embedder)
-retriever = HybridRetriever(bm25, vector)
-retriever.index_chunks(artifacts.chunks, embeddings=artifacts.embeddings)
-results = retriever.search("discussion of methods")
 ```
 
 ### Hybrid retrieval example
