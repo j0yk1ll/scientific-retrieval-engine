@@ -9,26 +9,26 @@ TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 
 @dataclass
-class GrobidSection:
+class PaperSection:
     title: str
     paragraphs: List[str]
 
 
 @dataclass
-class GrobidDocument:
+class PaperDocument:
     paper_id: str
     title: str
     abstract: List[str]
-    sections: List[GrobidSection]
+    sections: List[PaperSection]
     references: List[str]
 
 
 @dataclass
-class GrobidChunk:
+class PaperChunk:
     """A single chunk produced from the linear chunk stream of a TEI document.
 
     Offsets are measured in the concatenated chunk stream created by
-    :meth:`GrobidChunker.chunk`, *not* in the original TEI document.
+    :meth:`PaperChunkerService.chunk`, *not* in the original TEI document.
     """
 
     chunk_id: str
@@ -41,7 +41,7 @@ class GrobidChunk:
     section_index: int
 
 
-class GrobidChunker:
+class PaperChunkerService:
     """Turn GROBID TEI output into reproducible text chunks."""
 
     VERSION = "1"
@@ -56,7 +56,7 @@ class GrobidChunker:
         self.encoding = self._build_encoding(encoding_name)
         self.document = self._parse_document()
 
-    def chunk(self, *, max_tokens: int = 400, max_chars: int = 2000) -> List[GrobidChunk]:
+    def chunk(self, *, max_tokens: int = 400, max_chars: int = 2000) -> List[PaperChunk]:
         """Chunk the TEI XML into bounded pieces while preserving section context.
 
         Character offsets are measured against the concatenated chunk stream produced
@@ -65,7 +65,7 @@ class GrobidChunker:
         ``CHUNK_DELIMITER``.
         """
 
-        chunks: List[GrobidChunk] = []
+        chunks: List[PaperChunk] = []
         running_offset = 0
         chunk_index = 1
         header_token_count = 0
@@ -111,7 +111,7 @@ class GrobidChunker:
                 if chunks:
                     running_offset += len(self.CHUNK_DELIMITER)
 
-                chunk = GrobidChunk(
+                chunk = PaperChunk(
                     chunk_id=f"{self.paper_id}-chunk-{chunk_index}",
                     paper_id=self.paper_id,
                     section=section.title,
@@ -127,16 +127,16 @@ class GrobidChunker:
 
         return chunks
 
-    def _ordered_sections(self) -> List[GrobidSection]:
-        sections: List[GrobidSection] = []
+    def _ordered_sections(self) -> List[PaperSection]:
+        sections: List[PaperSection] = []
         if self.document.title:
-            sections.append(GrobidSection(title="Title", paragraphs=[self.document.title]))
+            sections.append(PaperSection(title="Title", paragraphs=[self.document.title]))
         if self.document.abstract:
-            sections.append(GrobidSection(title="Abstract", paragraphs=self.document.abstract))
+            sections.append(PaperSection(title="Abstract", paragraphs=self.document.abstract))
         sections.extend(self.document.sections)
         return sections
 
-    def _parse_document(self) -> GrobidDocument:
+    def _parse_document(self) -> PaperDocument:
         root = self._etree.fromstring(self.tei_xml.encode())
 
         title_nodes = root.xpath(".//tei:titleStmt/tei:title", namespaces=TEI_NS)
@@ -146,7 +146,7 @@ class GrobidChunker:
         abstract = [self._node_text(node) for node in abstract_nodes if self._node_text(node)]
 
         section_nodes = root.xpath(".//tei:text/tei:body/tei:div", namespaces=TEI_NS)
-        sections: List[GrobidSection] = []
+        sections: List[PaperSection] = []
         for section_node in section_nodes:
             head_nodes = section_node.xpath("./tei:head", namespaces=TEI_NS)
             section_title = self._node_text(head_nodes[0]) if head_nodes else "Untitled"
@@ -157,12 +157,12 @@ class GrobidChunker:
                 if self._node_text(paragraph)
             ]
             if paragraphs:
-                sections.append(GrobidSection(title=section_title, paragraphs=paragraphs))
+                sections.append(PaperSection(title=section_title, paragraphs=paragraphs))
 
         reference_nodes = root.xpath(".//tei:listBibl//tei:title", namespaces=TEI_NS)
         references = [self._node_text(node) for node in reference_nodes if self._node_text(node)]
 
-        return GrobidDocument(
+        return PaperDocument(
             paper_id=self.paper_id,
             title=title,
             abstract=abstract,
