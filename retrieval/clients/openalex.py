@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import quote
 
-from retrieval.clients.base import BaseHttpClient, NotFoundError
+from retrieval.clients.base import (
+    BaseHttpClient,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitedError,
+    RequestRejectedError,
+    UnauthorizedError,
+    UpstreamError,
+)
 from retrieval.identifiers import normalize_doi
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,12 +44,38 @@ class OpenAlexClient(BaseHttpClient):
     def get_work(self, openalex_work_id: str) -> Optional[OpenAlexWork]:
         """Fetch a single work by its OpenAlex identifier."""
 
+        return self._get_work_by_path(f"/works/{openalex_work_id}", identifier=openalex_work_id)
+
+    def get_work_by_external_id(self, external_id: str) -> Optional[OpenAlexWork]:
+        """Fetch a work by external identifier (e.g., DOI URL)."""
+
+        encoded = quote(external_id, safe="")
+        return self._get_work_by_path(f"/works/{encoded}", identifier=external_id)
+
+    def get_work_by_doi_filter(self, doi_url: str) -> Optional[OpenAlexWork]:
+        """Fetch a work using the DOI filter fallback."""
+
+        params: Dict[str, Any] = {"filter": f"doi:{doi_url}"}
         try:
-            response = self._request("GET", f"/works/{openalex_work_id}")
+            response = self._request("GET", "/works", params=params)
         except NotFoundError:
+            self._log_failed_request("doi_filter", doi_url, status=404, detail="Not found")
             return None
+        except (RequestRejectedError, UnauthorizedError, ForbiddenError) as exc:
+            self._log_failed_request("doi_filter", doi_url, status=exc.status, detail=exc.body_excerpt)
+            return None
+        except RateLimitedError as exc:
+            self._log_failed_request("doi_filter", doi_url, status=429, detail=str(exc))
+            return None
+        except UpstreamError as exc:
+            self._log_failed_request("doi_filter", doi_url, status=None, detail=str(exc))
+            return None
+
         payload = response.json()
-        return self._normalize_work(payload)
+        results = payload.get("results") or []
+        if not results:
+            return None
+        return self._normalize_work(results[0])
 
     def search_works(
         self,
@@ -58,6 +96,42 @@ class OpenAlexClient(BaseHttpClient):
         works = [self._normalize_work(item) for item in payload.get("results", [])]
         next_cursor = payload.get("meta", {}).get("next_cursor")
         return works, next_cursor
+
+    def _get_work_by_path(self, path: str, *, identifier: str) -> Optional[OpenAlexWork]:
+        try:
+            response = self._request("GET", path)
+        except NotFoundError:
+            self._log_failed_request("work_lookup", identifier, status=404, detail="Not found")
+            return None
+        except (RequestRejectedError, UnauthorizedError, ForbiddenError) as exc:
+            self._log_failed_request("work_lookup", identifier, status=exc.status, detail=exc.body_excerpt)
+            return None
+        except RateLimitedError as exc:
+            self._log_failed_request("work_lookup", identifier, status=429, detail=str(exc))
+            return None
+        except UpstreamError as exc:
+            self._log_failed_request("work_lookup", identifier, status=None, detail=str(exc))
+            return None
+
+        payload = response.json()
+        return self._normalize_work(payload)
+
+    def _log_failed_request(
+        self,
+        operation: str,
+        identifier: str,
+        *,
+        status: Optional[int],
+        detail: Optional[str],
+    ) -> None:
+        detail_message = f" detail={detail}" if detail else ""
+        logger.debug(
+            "OpenAlex %s failed for identifier=%s status=%s%s",
+            operation,
+            identifier,
+            status,
+            detail_message,
+        )
 
     def _normalize_work(self, data: Dict[str, Any]) -> OpenAlexWork:
         openalex_id = self._normalize_openalex_id(data.get("id"))

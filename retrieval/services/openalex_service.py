@@ -38,8 +38,10 @@ class OpenAlexService:
         normalized_doi = normalize_doi(doi)
         if not normalized_doi:
             return None
-        openalex_id = f"https://doi.org/{normalized_doi}"
-        work = self.client.get_work(openalex_id)
+        doi_url = f"https://doi.org/{normalized_doi}"
+        work = self.client.get_work_by_external_id(doi_url)
+        if work is None:
+            work = self.client.get_work_by_doi_filter(doi_url)
         if work is None:
             return None
         return self._to_paper(work)
