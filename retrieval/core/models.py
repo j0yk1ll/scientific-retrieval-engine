@@ -56,3 +56,21 @@ class PaperProvenance:
 
 
 __all__ = ["Paper", "Citation", "PaperEvidence", "PaperProvenance"]
+
+
+@dataclass
+class EvidenceChunk:
+    """A citeable evidence unit: chunk text + the paper it came from."""
+
+    chunk_id: str
+    paper_id: str
+    paper_title: str
+    paper_doi: Optional[str]
+    section: Optional[str]
+    content: str
+    paper_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+__all__.append("EvidenceChunk")

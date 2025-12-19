@@ -23,8 +23,12 @@ class RetrievalSettings:
     semanticscholar_api_key: Optional[str] = None
     opencitations_base_url: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
-    enable_semanticscholar_citation_fallback: bool = False
-    enable_openalex_citation_fallback: bool = False
+    # OpenCitations coverage is incomplete; enable high-quality fallbacks by default.
+    enable_semanticscholar_citation_fallback: bool = True
+    enable_openalex_citation_fallback: bool = True
+    # Practical caps to avoid unbounded citation crawls.
+    citation_limit: int = 500
+    openalex_citation_max_pages: int = 5
     session: Optional[requests.Session] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:

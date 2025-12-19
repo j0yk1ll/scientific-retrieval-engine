@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .models import Paper
+from .models import EvidenceChunk, Paper
 
 
 @dataclass
@@ -14,10 +14,12 @@ class SessionIndex:
     # Evidence items are keyed by query string only; there is no linkage to paper
     # identifiers to preserve backward compatibility with existing clients.
     evidence: Dict[str, List[Paper]] = field(default_factory=dict)
+    evidence_chunks: Dict[str, List[EvidenceChunk]] = field(default_factory=dict)
 
     def reset(self) -> None:
         self.papers.clear()
         self.evidence.clear()
+        self.evidence_chunks.clear()
 
     def _make_key(self, paper: Paper) -> Optional[str]:
         if paper.doi:

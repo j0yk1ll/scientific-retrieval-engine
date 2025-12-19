@@ -7,7 +7,7 @@ from typing import List, Optional
 import atexit
 
 from .api import RetrievalClient
-from .core.models import Citation, Paper
+from .core.models import Citation, EvidenceChunk, Paper
 
 _default_client: Optional[RetrievalClient] = None
 _clear_callback_registered = False
@@ -52,7 +52,7 @@ def search_paper_by_title(title: str) -> List[Paper]:
     return get_default_client().search_paper_by_title(title)
 
 
-def gather_evidence(query: str) -> List[Paper]:
+def gather_evidence(query: str) -> List[EvidenceChunk]:
     """Gather evidence from papers given a specific query."""
 
     return get_default_client().gather_evidence(query)
