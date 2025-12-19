@@ -100,7 +100,9 @@ class OpenAlexClient(BaseHttpClient):
     ) -> Tuple[List[OpenAlexWork], Optional[str]]:
         """Search works via the OpenAlex API."""
 
-        params: Dict[str, Any] = {"search": query, "per-page": per_page, "cursor": cursor}
+        params: Dict[str, Any] = {"per-page": per_page, "cursor": cursor}
+        if query:
+            params["search"] = query
         if filters:
             params["filter"] = ",".join(f"{key}:{value}" for key, value in filters.items())
 
