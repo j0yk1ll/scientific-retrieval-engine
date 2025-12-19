@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import requests
 from retrieval.providers.clients.base import (
     BaseHttpClient,
     NotFoundError,
@@ -36,6 +37,28 @@ class SemanticScholarClient(BaseHttpClient):
 
     BASE_URL = "https://api.semanticscholar.org/graph/v1"
 
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        session: Optional[requests.Session] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 10.0,
+        debug_logging: bool = False,
+    ) -> None:
+        super().__init__(
+            session=session,
+            base_url=base_url,
+            timeout=timeout,
+            debug_logging=debug_logging,
+        )
+        self.api_key = api_key
+
+    def _auth_headers(self) -> Optional[Dict[str, str]]:
+        if not self.api_key:
+            return None
+        return {"x-api-key": self.api_key}
+
     def search_papers(
         self,
         query: str,
@@ -59,7 +82,9 @@ class SemanticScholarClient(BaseHttpClient):
         if year_filters:
             params["year"] = ",".join(year_filters)
 
-        response = self._request("GET", "/paper/search", params=params)
+        response = self._request(
+            "GET", "/paper/search", params=params, headers=self._auth_headers()
+        )
         payload = response.json()
         return [self._normalize_paper(item) for item in payload.get("data", []) if isinstance(item, dict)]
 
@@ -87,7 +112,9 @@ class SemanticScholarClient(BaseHttpClient):
             payload["year"] = ",".join(year_filters)
 
         try:
-            response = self._request("POST", "/paper/search/bulk", json=payload)
+            response = self._request(
+                "POST", "/paper/search/bulk", json=payload, headers=self._auth_headers()
+            )
         except (NotFoundError, RateLimitedError, RequestRejectedError):
             return self.search_papers(
                 query,
@@ -109,12 +136,38 @@ class SemanticScholarClient(BaseHttpClient):
 
         try:
             response = self._request(
-                "GET", f"/paper/DOI:{normalized_doi}", params={"fields": fields}
+                "GET",
+                f"/paper/DOI:{normalized_doi}",
+                params={"fields": fields},
+                headers=self._auth_headers(),
             )
         except NotFoundError:
             return None
 
         return self._normalize_paper(response.json())
+
+    def get_citations(
+        self, paper_id: str, *, fields: str = "paperId,externalIds,doi"
+    ) -> List[SemanticScholarPaper]:
+        if not paper_id:
+            return []
+
+        response = self._request(
+            "GET",
+            f"/paper/{paper_id}/citations",
+            params={"fields": fields},
+            headers=self._auth_headers(),
+        )
+        payload = response.json()
+        results: List[SemanticScholarPaper] = []
+        for item in payload.get("data", []) or []:
+            if not isinstance(item, dict):
+                continue
+            citing = item.get("citingPaper")
+            if not isinstance(citing, dict):
+                continue
+            results.append(self._normalize_paper(citing))
+        return results
 
     def _normalize_paper(self, data: Dict[str, Any]) -> SemanticScholarPaper:
         doi = normalize_doi(data.get("doi") or data.get("externalIds", {}).get("DOI"))

@@ -1,6 +1,10 @@
 import requests
 
-from retrieval.providers.clients.opencitations import OpenCitationsClient
+from retrieval.providers.clients.opencitations import (
+    OpenCitationsClient,
+    extract_preferred_pid,
+    to_oc_pid,
+)
 from retrieval.core.models import Citation
 
 
@@ -76,3 +80,20 @@ def test_opencitations_normalizes_doi_inputs(monkeypatch):
 
     assert len(calls) == 2
     assert calls[0] == calls[1]
+    assert calls[0].endswith("/citations/doi:10.1000/xyz")
+
+
+def test_to_oc_pid():
+    assert to_oc_pid("doi:10.1000/xyz") == "doi:10.1000/xyz"
+    assert to_oc_pid("PMID:12345") == "PMID:12345"
+    assert to_oc_pid("10.1000/XYZ") == "doi:10.1000/xyz"
+    assert to_oc_pid(" ") == ""
+
+
+def test_extract_preferred_pid():
+    assert extract_preferred_pid("doi:10.1000/xyz") == "10.1000/xyz"
+    assert extract_preferred_pid("omid:123 doi:10.1000/xyz pmid:456") == "10.1000/xyz"
+    assert extract_preferred_pid("omid:123 pmid:456") == "pmid:456"
+    assert extract_preferred_pid("oci:123 => doi:10.1000/xyz") == "10.1000/xyz"
+    assert extract_preferred_pid("doi:10.1000/xyz; omid:123") == "10.1000/xyz"
+    assert extract_preferred_pid("10.1000/xyz") == "10.1000/xyz"
