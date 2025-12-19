@@ -7,7 +7,7 @@ import logging
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import quote
 
-from retrieval.clients.base import (
+from retrieval.providers.clients.base import (
     BaseHttpClient,
     ForbiddenError,
     NotFoundError,
@@ -16,7 +16,7 @@ from retrieval.clients.base import (
     UnauthorizedError,
     UpstreamError,
 )
-from retrieval.identifiers import normalize_doi
+from retrieval.core.identifiers import normalize_doi
 
 logger = logging.getLogger(__name__)
 

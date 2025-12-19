@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from retrieval.clients.base import ClientError
-from retrieval.clients.unpaywall import UnpaywallClient, UnpaywallRecord
-from retrieval.models import Paper
+from retrieval.providers.clients.base import ClientError
+from retrieval.providers.clients.unpaywall import UnpaywallClient, UnpaywallRecord
+from retrieval.core.models import Paper
 
 
 class PaperEnrichmentService:

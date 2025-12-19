@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import List
 
-from retrieval.clients.base import BaseHttpClient, NotFoundError
-from retrieval.identifiers import normalize_doi
-from retrieval.models import Citation
+from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
+from retrieval.core.identifiers import normalize_doi
+from retrieval.core.models import Citation
 
 
 class OpenCitationsClient(BaseHttpClient):

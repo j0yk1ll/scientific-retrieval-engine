@@ -1,5 +1,5 @@
-from retrieval.clients.crossref import CrossrefWork
-from retrieval.clients.datacite import DataCiteWork
+from retrieval.providers.clients.crossref import CrossrefWork
+from retrieval.providers.clients.datacite import DataCiteWork
 from retrieval.services.doi_resolver_service import DoiResolverService
 
 

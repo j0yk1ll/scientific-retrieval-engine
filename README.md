@@ -35,7 +35,7 @@ Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, U
 
 DOI inputs are resolved across Crossref, DataCite, OpenAlex, and Semantic Scholar.
 Results are merged to prefer canonical identifiers while preserving the originating
-source on each :class:`retrieval.models.Paper` instance via ``paper.source`` and
+source on each :class:`retrieval.core.models.Paper` instance via ``paper.source`` and
 ``paper.primary_source``.
 
 ```python
@@ -113,7 +113,7 @@ Unpaywall is opt-in and requires a contact email. Enable it via settings (or env
 
 ```python
 from retrieval.api import RetrievalClient
-from retrieval.settings import RetrievalSettings
+from retrieval.core.settings import RetrievalSettings
 
 settings = RetrievalSettings(enable_unpaywall=True, unpaywall_email="you@example.com")
 client = RetrievalClient(settings=settings)

@@ -1,4 +1,4 @@
-from retrieval.matching import jaccard, title_tokens
+from retrieval.core.matching import jaccard, title_tokens
 
 
 def test_title_tokens_normalize_and_strip_punctuation():

@@ -1,7 +1,7 @@
 import requests
 
-from retrieval.clients.opencitations import OpenCitationsClient
-from retrieval.models import Citation
+from retrieval.providers.clients.opencitations import OpenCitationsClient
+from retrieval.core.models import Citation
 
 
 class DummyResponse:

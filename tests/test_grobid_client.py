@@ -1,6 +1,6 @@
 import responses
 
-from retrieval.clients import GrobidClient
+from retrieval.providers.clients import GrobidClient
 
 
 @responses.activate

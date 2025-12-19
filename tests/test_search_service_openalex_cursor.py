@@ -1,4 +1,4 @@
-from retrieval.clients.openalex import OpenAlexWork
+from retrieval.providers.clients.openalex import OpenAlexWork
 from retrieval.services.search_service import PaperSearchService
 
 

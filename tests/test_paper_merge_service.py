@@ -1,4 +1,4 @@
-from retrieval.models import Paper
+from retrieval.core.models import Paper
 from retrieval.services.paper_merge_service import PaperMergeService
 
 

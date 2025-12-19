@@ -3,8 +3,10 @@ from pathlib import Path
 
 
 def load_identifiers_module():
-    module_path = Path(__file__).resolve().parent.parent / "retrieval" / "identifiers.py"
-    spec = importlib.util.spec_from_file_location("retrieval.identifiers", module_path)
+    module_path = (
+        Path(__file__).resolve().parent.parent / "retrieval" / "core" / "identifiers.py"
+    )
+    spec = importlib.util.spec_from_file_location("retrieval.core.identifiers", module_path)
     module = importlib.util.module_from_spec(spec)
     if spec and spec.loader:
         spec.loader.exec_module(module)  # type: ignore[arg-type]

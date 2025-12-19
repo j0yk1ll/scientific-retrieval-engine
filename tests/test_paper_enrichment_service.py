@@ -3,8 +3,8 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from retrieval.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
-from retrieval.models import Paper
+from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
+from retrieval.core.models import Paper
 from retrieval.services.paper_enrichment_service import PaperEnrichmentService
 
 

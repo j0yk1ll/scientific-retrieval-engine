@@ -1,6 +1,6 @@
-from retrieval.clients.openalex import OpenAlexWork
-from retrieval.clients.semanticscholar import SemanticScholarPaper
-from retrieval.models import Paper
+from retrieval.providers.clients.openalex import OpenAlexWork
+from retrieval.providers.clients.semanticscholar import SemanticScholarPaper
+from retrieval.core.models import Paper
 from retrieval.services.search_service import PaperSearchService
 
 
