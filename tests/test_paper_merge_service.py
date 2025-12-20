@@ -34,7 +34,7 @@ def test_merge_prefers_doi_and_tracks_field_sources() -> None:
     assert merged.doi == "10.1000/example"
     assert merged.abstract == "Rich abstract from OpenAlex."
     assert merged.source == "crossref"
-    assert merged.primary_source == "crossref"
+    assert merged.source == "crossref"
     assert set(merged.provenance.sources) == {"openalex", "crossref"}
     assert merged.provenance.field_sources["abstract"].source == "openalex"
     assert merged.provenance.field_sources["doi"].source == "crossref"
@@ -42,7 +42,7 @@ def test_merge_prefers_doi_and_tracks_field_sources() -> None:
     assert merged.provenance.field_sources["paper_id"].source == "crossref"
 
 
-def test_merge_primary_source_falls_back_to_counts_when_identifiers_missing() -> None:
+def test_merge_source_falls_back_to_counts_when_identifiers_missing() -> None:
     openalex = Paper(
         paper_id="",
         title="",
@@ -70,7 +70,6 @@ def test_merge_primary_source_falls_back_to_counts_when_identifiers_missing() ->
 
     merged = PaperMergeService().merge([openalex, semanticscholar])
 
-    assert merged.primary_source == "openalex"
     assert merged.source == "openalex"
 
 
@@ -160,7 +159,7 @@ def test_merge_obeys_source_priority_rules() -> None:
     assert merged.url == "https://doi.org/10.1234/ABC"
     assert merged.abstract.startswith("This is a much longer abstract from OpenAlex")
     assert merged.authors == ["Alice", "Bob", "Charlie", "Dana"]
-    assert merged.primary_source == "crossref"
+    assert merged.source == "crossref"
 
     assert merged.provenance.field_sources["doi"].source == "crossref"
     assert merged.provenance.field_sources["year"].source == "crossref"
@@ -194,11 +193,11 @@ def test_merge_prefers_higher_priority_source_for_doi() -> None:
     merged = PaperMergeService().merge([datacite, crossref])
 
     assert merged.doi == "10.9999/example"
-    assert merged.primary_source == "crossref"
+    assert merged.source == "crossref"
     assert merged.provenance.field_sources["doi"].source == "crossref"
 
 
-def test_primary_source_prefers_doi_presence_over_priority() -> None:
+def test_source_prefers_doi_presence_over_priority() -> None:
     higher_priority_without_doi = Paper(
         paper_id="datacite:1",
         title="Example",
@@ -223,7 +222,7 @@ def test_primary_source_prefers_doi_presence_over_priority() -> None:
         [higher_priority_without_doi, lower_priority_with_doi]
     )
 
-    assert merged.primary_source == "crossref"
+    assert merged.source == "crossref"
     assert merged.doi == "10.1234/example"
     assert merged.provenance.field_sources["doi"].source == "crossref"
 
@@ -346,7 +345,7 @@ def test_merge_default_priority_is_preserved_for_key_fields() -> None:
     assert merged.provenance.field_sources["venue"].source == "crossref"
 
 
-def test_primary_source_when_no_doi_uses_title_evidence_or_rule() -> None:
+def test_source_when_no_doi_uses_title_evidence_or_rule() -> None:
     crossref = Paper(
         paper_id="crossref:1",
         title="",
@@ -370,7 +369,7 @@ def test_primary_source_when_no_doi_uses_title_evidence_or_rule() -> None:
     merged = PaperMergeService().merge([crossref, openalex])
 
     assert merged.title == "Determined Title"
-    assert merged.primary_source == "openalex"
+    assert merged.source == "openalex"
     assert merged.provenance.field_sources["title"].source == "openalex"
 
 
@@ -411,7 +410,7 @@ def test_tie_handling_updates_selected_evidence() -> None:
     assert merged.provenance.field_sources["abstract"].source == "unknown"
 
 
-def test_primary_source_prefers_identifier_evidence_over_other_fields() -> None:
+def test_source_prefers_identifier_evidence_over_other_fields() -> None:
     crossref = Paper(
         paper_id="crossref:10",
         title="",
@@ -435,5 +434,5 @@ def test_primary_source_prefers_identifier_evidence_over_other_fields() -> None:
     merged = PaperMergeService().merge([openalex, crossref])
 
     assert merged.title == "Fresh and Improved Title"
-    assert merged.primary_source == "crossref"
+    assert merged.source == "crossref"
     assert merged.provenance.field_sources["title"].source == "openalex"

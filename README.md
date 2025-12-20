@@ -35,8 +35,7 @@ Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, U
 
 DOI inputs are resolved across Crossref, DataCite, OpenAlex, and Semantic Scholar.
 Results are merged to prefer canonical identifiers while preserving the originating
-source on each :class:`retrieval.core.models.Paper` instance via ``paper.source`` and
-``paper.primary_source``.
+source on each :class:`retrieval.core.models.Paper` instance via ``paper.source``.
 
 ```python
 from retrieval import search_paper_by_doi

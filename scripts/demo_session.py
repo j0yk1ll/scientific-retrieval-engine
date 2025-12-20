@@ -29,7 +29,7 @@ def short_print_papers(papers: Any, label: str) -> None:
     for i, p in enumerate(papers[:5], start=1):
         title = getattr(p, "title", "<no title>")
         doi = getattr(p, "doi", "<no doi>")
-        source = getattr(p, "source", getattr(p, "primary_source", "<no source>"))
+        source = getattr(p, "source", "<no source>")
         print(f"{i}. {title} — DOI: {doi} — source: {source}")
     print()
 
@@ -42,7 +42,7 @@ def short_print_paper(paper: Optional[Any], label: str) -> None:
         return
     title = getattr(paper, "title", "<no title>")
     doi = getattr(paper, "doi", "<no doi>")
-    source = getattr(paper, "source", getattr(paper, "primary_source", "<no source>"))
+    source = getattr(paper, "source", "<no source>")
     print(f"1. {title} — DOI: {doi} — source: {source}")
     print()
 
