@@ -155,6 +155,7 @@ class RetrievalClient:
         self._evidence_service = EvidenceService(
             session=self.session,
             grobid=self._grobid_client,
+            full_text_resolver=self._full_text_resolver,
             config=EvidenceConfig(),
         )
 
