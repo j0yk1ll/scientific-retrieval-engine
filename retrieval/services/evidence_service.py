@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import List, Optional
 
 import requests
@@ -43,6 +44,12 @@ class EvidenceService:
         return out
 
     def _paper_to_evidence(self, paper: Paper) -> List[EvidenceChunk]:
+        # Try deterministic PDF inference (e.g., arXiv) before full-text path.
+        if not paper.pdf_url:
+            inferred = _infer_pdf_url(paper)
+            if inferred:
+                paper.pdf_url = inferred
+
         # Full-text path (PDF -> GROBID -> TEI -> chunks)
         if self.grobid and paper.pdf_url:
             pdf_bytes = self._download_pdf(paper.pdf_url)
@@ -104,11 +111,38 @@ class EvidenceService:
 
     def _download_pdf(self, url: str) -> Optional[bytes]:
         try:
-            resp = self.session.get(url, timeout=20)
+            resp = self.session.get(
+                url,
+                timeout=20,
+                headers={"Accept": "application/pdf,application/octet-stream;q=0.9,*/*;q=0.1"},
+                allow_redirects=True,
+            )
             resp.raise_for_status()
-            # Best-effort check; some hosts mislabel PDFs.
-            if resp.content:
+            if not resp.content:
+                return None
+            # Best-effort PDF check: either header says PDF, or bytes start with %PDF
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            if "pdf" in ctype or resp.content[:4] == b"%PDF":
                 return resp.content
         except Exception:
             return None
         return None
+
+
+_ARXIV_DOI_RE = re.compile(r"^10\.48550/arxiv\.(?P<id>.+)$", re.IGNORECASE)
+
+
+def _infer_pdf_url(paper: Paper) -> Optional[str]:
+    doi = (paper.doi or "").strip()
+    if doi:
+        m = _ARXIV_DOI_RE.match(doi)
+        if m:
+            arxiv_id = m.group("id")
+            return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+    url = (paper.url or "").strip()
+    # Common arXiv landing-page patterns
+    if "arxiv.org/abs/" in url:
+        arxiv_id = url.split("arxiv.org/abs/", 1)[1].split("?", 1)[0]
+        if arxiv_id:
+            return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+    return None
