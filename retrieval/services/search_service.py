@@ -197,7 +197,7 @@ class PaperSearchService:
         reranked_results = self._rerank_locally(merged_results, query=query)
         return reranked_results[:k], raw_results
 
-    def search_by_doi(self, doi: str) -> List[Paper]:
+    def search_by_doi(self, doi: str) -> Optional[Paper]:
         candidates: List[Paper] = []
         seen: Set[str] = set()
 
@@ -218,28 +218,33 @@ class PaperSearchService:
             self._append_unique(
                 [semanticscholar_paper_to_paper(semantic_record)], candidates, seen
             )
-        return candidates
 
-    def search_by_title(self, title: str, *, k: int = 5) -> List[Paper]:
-        initial_results = self.search(title, k=k)
+        if not candidates:
+            return None
 
-        resolved_results, seen = self._resolve_missing_dois(title, initial_results)
+        return self.merge_service.merge(candidates)
 
-        if len(resolved_results) < k:
-            crossref_candidates = [
-                crossref_work_to_paper(work)
-                for work in self.crossref.search_by_title(title, rows=k)
-            ]
-            self._append_unique(crossref_candidates, resolved_results, seen)
+    def search_by_title(self, title: str) -> Optional[Paper]:
+        if not title:
+            return None
 
-        if len(resolved_results) < k:
-            datacite_candidates = [
-                datacite_work_to_paper(work)
-                for work in self.datacite.search_by_title(title, rows=k)
-            ]
-            self._append_unique(datacite_candidates, resolved_results, seen)
+        results = self.search(title, k=5)
+        if not results:
+            return None
 
-        return resolved_results[:k]
+        best = results[0]
+        if best.doi:
+            return best
+
+        resolved_doi = self.doi_resolver.resolve_doi_from_title(
+            best.title or title,
+            expected_authors=best.authors or None,
+        )
+        if not resolved_doi:
+            return None
+
+        canonical = self._fetch_canonical_by_doi(resolved_doi)
+        return canonical or None
 
     def _rerank_locally(self, papers: List[Paper], *, query: str) -> List[Paper]:
         if not papers:

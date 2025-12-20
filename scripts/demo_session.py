@@ -8,7 +8,7 @@ concise summaries of their outputs. It's intended for interactive testing.
 from __future__ import annotations
 
 import argparse
-from typing import Any
+from typing import Any, Optional
 
 from retrieval import (
     search_papers,
@@ -34,6 +34,19 @@ def short_print_papers(papers: Any, label: str) -> None:
     print()
 
 
+def short_print_paper(paper: Optional[Any], label: str) -> None:
+    print(f"--- {label}: {1 if paper else 0} result ---")
+    if not paper:
+        print("No results.")
+        print()
+        return
+    title = getattr(paper, "title", "<no title>")
+    doi = getattr(paper, "doi", "<no doi>")
+    source = getattr(paper, "source", getattr(paper, "primary_source", "<no source>"))
+    print(f"1. {title} — DOI: {doi} — source: {source}")
+    print()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Demo the retrieval package functions.")
     parser.add_argument("--query", default="graph neural networks", help="Free-text query for `search_papers` and `gather_evidence`")
@@ -51,14 +64,14 @@ def main() -> None:
     # search_paper_by_doi
     try:
         doi_res = search_paper_by_doi(args.doi)
-        short_print_papers(doi_res, f"search_paper_by_doi('{args.doi}')")
+        short_print_paper(doi_res, f"search_paper_by_doi('{args.doi}')")
     except Exception as e:  # pragma: no cover - demo runner
         print("search_paper_by_doi error:", e)
 
     # search_paper_by_title
     try:
         title_res = search_paper_by_title(args.title)
-        short_print_papers(title_res, f"search_paper_by_title('{args.title}')")
+        short_print_paper(title_res, f"search_paper_by_title('{args.title}')")
     except Exception as e:  # pragma: no cover - demo runner
         print("search_paper_by_title error:", e)
 

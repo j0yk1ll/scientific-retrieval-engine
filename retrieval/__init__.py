@@ -40,13 +40,13 @@ def search_papers(
     return get_default_client().search_papers(query, k=k, min_year=min_year, max_year=max_year)
 
 
-def search_paper_by_doi(doi: str) -> List[Paper]:
+def search_paper_by_doi(doi: str) -> Optional[Paper]:
     """Search for a paper by DOI across supported services."""
 
     return get_default_client().search_paper_by_doi(doi)
 
 
-def search_paper_by_title(title: str) -> List[Paper]:
+def search_paper_by_title(title: str) -> Optional[Paper]:
     """Search for a paper by title."""
 
     return get_default_client().search_paper_by_title(title)
