@@ -49,12 +49,14 @@ class EvidenceService:
         return out
 
     def _paper_to_evidence(self, paper: Paper) -> List[EvidenceChunk]:
-        resolved_pdf_url = paper.pdf_url
-        if self.full_text_resolver:
+        resolved_pdf_url = paper.resolved_pdf_url
+        if not resolved_pdf_url and self.full_text_resolver:
             resolution = self.full_text_resolver.resolve(paper)
             best = resolution.best
             if best:
                 resolved_pdf_url = best.pdf_url or getattr(best, "url", None)
+        if not resolved_pdf_url:
+            resolved_pdf_url = paper.pdf_url
 
         # Full-text path (PDF -> GROBID -> TEI -> chunks)
         if self.grobid and resolved_pdf_url:

@@ -156,9 +156,9 @@ class FullTextResolverService:
         resolution = self.resolve(paper)
         best = resolution.best
         if best and best.pdf_url:
-            paper.pdf_url = best.pdf_url
+            paper.resolved_pdf_url = best.pdf_url
             provenance = paper.provenance or PaperProvenance()
-            provenance.field_sources["pdf_url"] = FieldEvidence(
+            provenance.field_sources["resolved_pdf_url"] = FieldEvidence(
                 source=best.source,
                 value=best.pdf_url or getattr(best, "url", None),
             )
