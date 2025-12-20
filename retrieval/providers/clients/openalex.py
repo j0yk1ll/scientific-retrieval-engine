@@ -34,6 +34,8 @@ class OpenAlexWork:
     abstract: Optional[str]
     authors: List[str]
     referenced_works: List[str]
+    pdf_url: Optional[str]
+    is_oa: Optional[bool]
 
 
 class OpenAlexClient(BaseHttpClient):
@@ -191,6 +193,11 @@ class OpenAlexClient(BaseHttpClient):
         abstract = self._extract_abstract(data)
         authors = self._extract_authors(data.get("authorships", []))
         referenced_works = [self._normalize_openalex_id(item) for item in data.get("referenced_works", [])]
+        
+        primary_location = data.get("primary_location") if isinstance(data.get("primary_location"), dict) else {}
+        pdf_url = primary_location.get("pdf_url")
+        open_access = data.get("open_access") if isinstance(data.get("open_access"), dict) else {}
+        is_oa = open_access.get("is_oa")
 
         return OpenAlexWork(
             openalex_id=openalex_id,
@@ -202,6 +209,8 @@ class OpenAlexClient(BaseHttpClient):
             abstract=abstract,
             authors=authors,
             referenced_works=referenced_works,
+            pdf_url=pdf_url,
+            is_oa=bool(is_oa) if is_oa is not None else None,
         )
 
     def _extract_authors(self, authorships: Iterable[Dict[str, Any]]) -> List[str]:

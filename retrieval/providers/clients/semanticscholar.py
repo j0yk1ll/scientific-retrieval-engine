@@ -15,7 +15,7 @@ from retrieval.providers.clients.base import (
 from retrieval.core.identifiers import normalize_doi
 
 
-DEFAULT_FIELDS = "paperId,externalIds,title,abstract,year,venue,authors.name,url"
+DEFAULT_FIELDS = "paperId,externalIds,title,abstract,year,venue,authors.name,url,openAccessPdf"
 
 
 @dataclass
@@ -29,6 +29,7 @@ class SemanticScholarPaper:
     year: Optional[int]
     venue: Optional[str]
     url: Optional[str]
+    pdf_url: Optional[str]
     authors: List[str]
 
 
@@ -203,6 +204,9 @@ class SemanticScholarClient(BaseHttpClient):
             name = author.get("name")
             if name:
                 authors.append(name)
+                
+        open_access_pdf = data.get("openAccessPdf") or {}
+        pdf_url = open_access_pdf.get("url") if isinstance(open_access_pdf, dict) else None
 
         return SemanticScholarPaper(
             paper_id=str(
@@ -218,5 +222,6 @@ class SemanticScholarClient(BaseHttpClient):
             year=data.get("year"),
             venue=data.get("venue"),
             url=data.get("url"),
+            pdf_url=pdf_url,
             authors=authors,
         )

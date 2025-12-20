@@ -46,6 +46,8 @@ def openalex_work_to_paper(work: OpenAlexWork) -> Paper:
         venue=work.venue,
         source="openalex",
         url=work.openalex_url,
+        pdf_url=work.pdf_url,
+        is_oa=work.is_oa,
         authors=work.authors,
     )
 
@@ -60,5 +62,7 @@ def semanticscholar_paper_to_paper(record: SemanticScholarPaper) -> Paper:
         venue=record.venue,
         source="semanticscholar",
         url=record.url,
+        pdf_url=record.pdf_url,
+        is_oa=bool(record.pdf_url),
         authors=record.authors,
     )
