@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
-
 import importlib
 import importlib.util
+import os
+from typing import Optional
 import requests
 
 
@@ -27,6 +27,22 @@ class RetrievalSettings:
     openalex_citation_max_pages: int = 5
     session: Optional[requests.Session] = field(default=None, repr=False)
 
+    def __post_init__(self) -> None:
+        self._apply_env_overrides()
+
+    def _apply_env_overrides(self) -> None:
+        env_timeout = _get_env_value("RETRIEVAL_REQUEST_TIMEOUT_S")
+        if env_timeout and self.timeout == 10.0:
+            self.timeout = float(env_timeout)
+
+        env_unpaywall_email = _get_env_value("RETRIEVAL_UNPAYWALL_EMAIL")
+        if env_unpaywall_email and self.unpaywall_email is None:
+            self.unpaywall_email = env_unpaywall_email
+
+        env_grobid_url = _get_env_value("RETRIEVAL_GROBID_URL")
+        if env_grobid_url and self.grobid_base_url is None:
+            self.grobid_base_url = env_grobid_url
+
     def build_session(self) -> requests.Session:
         """Return a configured :class:`requests.Session` using the settings."""
 
@@ -38,6 +54,14 @@ class RetrievalSettings:
         if self.user_agent:
             session.headers.setdefault("User-Agent", self.user_agent)
         return session
+
+
+def _get_env_value(name: str) -> Optional[str]:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
 
 
 def load_dotenv_from_root(override: bool = False) -> None:
