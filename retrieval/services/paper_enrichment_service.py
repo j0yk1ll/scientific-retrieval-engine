@@ -18,9 +18,4 @@ class PaperEnrichmentService:
         if not self.resolver:
             return paper
 
-        resolution = self.resolver.resolve(paper)
-        if resolution.best:
-            paper.pdf_url = resolution.best.pdf_url
-        if resolution.oa_signal is True:
-            paper.is_oa = True
-        return paper
+        return self.resolver.apply(paper)

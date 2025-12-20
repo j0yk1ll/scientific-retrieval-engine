@@ -2,6 +2,7 @@ from retrieval.core.models import Paper
 from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
 from retrieval.services.full_text_resolver_service import (
     ArxivDeterministicResolver,
+    FullTextResolverService,
     UpstreamFieldsResolver,
     UnpaywallResolver,
 )
@@ -103,7 +104,7 @@ def test_unpaywall_best_location_yields_candidate():
     candidates = resolver.resolve(paper)
 
     assert [(candidate.pdf_url, candidate.source) for candidate in candidates] == [
-        ("https://example.org/best.pdf", "unpaywall_best")
+        ("https://example.org/best.pdf", "unpaywall")
     ]
     assert candidates[0].license == "cc-by"
     assert candidates[0].version == "publishedVersion"
@@ -148,7 +149,7 @@ def test_unpaywall_falls_back_to_first_location_when_no_best():
     candidates = resolver.resolve(paper)
 
     assert candidates[0].pdf_url == "https://example.org/first.pdf"
-    assert candidates[0].source == "unpaywall_best"
+    assert candidates[0].source == "unpaywall"
 
 
 def test_unpaywall_candidates_order_best_first():
@@ -191,3 +192,57 @@ def test_unpaywall_candidates_order_best_first():
         "https://example.org/best.pdf",
         "https://example.org/other.pdf",
     ]
+
+
+def test_apply_sets_pdf_url_provenance_from_unpaywall_best():
+    best_location = OpenAccessLocation(
+        url="https://example.org/landing",
+        url_for_pdf="https://example.org/best.pdf",
+        version="publishedVersion",
+        license="cc-by",
+        host_type="publisher",
+        is_best=True,
+    )
+    record = UnpaywallRecord(
+        doi="10.0000/example",
+        title="Sample",
+        best_oa_location=best_location,
+        oa_locations=[best_location],
+    )
+    resolver = FullTextResolverService(
+        resolvers=[UnpaywallResolver(FakeUnpaywallClient(record))]
+    )
+    paper = Paper(
+        paper_id="paper-7",
+        title="Sample",
+        doi="10.0000/example",
+        abstract=None,
+        year=None,
+        venue=None,
+        source="test",
+    )
+
+    resolver.apply(paper)
+
+    assert paper.pdf_url == "https://example.org/best.pdf"
+    assert paper.provenance is not None
+    assert paper.provenance.field_sources["pdf_url"].source == "unpaywall"
+
+
+def test_apply_sets_pdf_url_provenance_from_arxiv():
+    resolver = FullTextResolverService(resolvers=[ArxivDeterministicResolver()])
+    paper = Paper(
+        paper_id="paper-8",
+        title="Sample",
+        doi="10.48550/arXiv.2401.12345",
+        abstract=None,
+        year=None,
+        venue=None,
+        source="test",
+    )
+
+    resolver.apply(paper)
+
+    assert paper.pdf_url == "https://arxiv.org/pdf/2401.12345.pdf"
+    assert paper.provenance is not None
+    assert paper.provenance.field_sources["pdf_url"].source == "arxiv"
