@@ -8,6 +8,7 @@ concise summaries of their outputs. It's intended for interactive testing.
 from __future__ import annotations
 
 import argparse
+import pprint
 from typing import Any, Optional
 
 from retrieval import (
@@ -20,17 +21,45 @@ from retrieval import (
 )
 
 
-def short_print_papers(papers: Any, label: str) -> None:
-    print(f"--- {label}: {len(papers) if papers is not None else 0} results ---")
-    if not papers:
-        print("No results.")
-        print()
-        return
-    for i, p in enumerate(papers[:5], start=1):
-        title = getattr(p, "title", "<no title>")
-        doi = getattr(p, "doi", "<no doi>")
-        source = getattr(p, "source", "<no source>")
-        print(f"{i}. {title} — DOI: {doi} — source: {source}")
+def _truncate_string(s: str, max_len: int) -> str:
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1] + "…"
+
+
+def _normalize_for_print(obj: Any, max_len: int) -> Any:
+    """Recursively convert the object into primitives and truncate long strings.
+
+    - Strings get truncated to `max_len` characters.
+    - dicts/lists/tuples are walked recursively.
+    - objects with `__dict__` are converted to their dict.
+    - other objects are converted via `repr()` and truncated.
+    """
+    if isinstance(obj, str):
+        return _truncate_string(obj, max_len)
+    if obj is None or isinstance(obj, (bool, int, float)):
+        return obj
+    if isinstance(obj, dict):
+        return {k: _normalize_for_print(v, max_len) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        seq = [_normalize_for_print(v, max_len) for v in obj]
+        return type(obj)(seq) if not isinstance(obj, set) else set(seq)
+    # Try to use __dict__ for custom objects
+    try:
+        d = getattr(obj, "__dict__", None)
+        if isinstance(d, dict):
+            return {type(obj).__name__: _normalize_for_print(d, max_len)}
+    except Exception:
+        pass
+    # Fallback to repr()
+    return _truncate_string(repr(obj), max_len)
+
+
+def print_raw_truncated(obj: Any, label: str, max_len: int = 200) -> None:
+    """Print a 'raw' view of `obj` while truncating long strings for readability."""
+    print(f"--- {label}: {len(obj) if hasattr(obj, '__len__') and obj is not None else 0} results ---")
+    norm = _normalize_for_print(obj, max_len)
+    print(pprint.pformat(norm, width=120))
     print()
 
 
@@ -57,7 +86,7 @@ def main() -> None:
     # search_papers
     try:
         papers = search_papers(args.query, k=5)
-        short_print_papers(papers, f"search_papers('{args.query}')")
+        print_raw_truncated(papers, f"search_papers('{args.query}')")
     except Exception as e:  # pragma: no cover - demo runner
         print("search_papers error:", e)
 

@@ -90,7 +90,9 @@ class RetrievalClient:
             base_url=self.settings.datacite_base_url,
         )
 
-        doi_resolver = DoiResolverService(crossref=crossref_client, datacite=datacite_client)
+        doi_resolver = DoiResolverService(
+            crossref=crossref_client, datacite=datacite_client
+        )
 
         semanticscholar_client = semanticscholar_client or SemanticScholarClient(
             session=self.session,
@@ -115,17 +117,15 @@ class RetrievalClient:
 
         if unpaywall_client is not None:
             self._unpaywall_client = unpaywall_client
-        elif self.settings.enable_unpaywall:
+        else:
             if not self.settings.unpaywall_email:
-                raise ValueError("Unpaywall email is required when enable_unpaywall is True")
+                raise ValueError("Unpaywall email is required")
             self._unpaywall_client = UnpaywallClient(
                 self.settings.unpaywall_email,
                 session=self.session,
                 base_url=self.settings.unpaywall_base_url,
                 timeout=self.settings.timeout,
             )
-        else:
-            self._unpaywall_client = None
 
         self._full_text_resolver = FullTextResolverService(
             unpaywall_client=self._unpaywall_client
@@ -134,12 +134,8 @@ class RetrievalClient:
             resolver=self._full_text_resolver
         )
 
-        # Optional: only useful if a GROBID service is running.
-        # If you do not want full-text chunking, leave this as None.
-        self._grobid_client: GrobidClient | None = (
-            GrobidClient(session=self.session, base_url=self.settings.grobid_base_url)
-            if getattr(self.settings, "enable_grobid", False)
-            else None
+        self._grobid_client: GrobidClient = GrobidClient(
+            session=self.session, base_url=self.settings.grobid_base_url
         )
         self._evidence_service = EvidenceService(
             session=self.session,
@@ -179,7 +175,9 @@ class RetrievalClient:
                     paper_identifier,
                     limit=getattr(self.settings, "citation_limit", 500),
                 )
-                citing_papers = [semanticscholar_paper_to_paper(p) for p in citing_records]
+                citing_papers = [
+                    semanticscholar_paper_to_paper(p) for p in citing_records
+                ]
                 citing_papers = self._dedupe_citing_papers(citing_papers)
                 citing_papers = self._enforce_doi_backed_citing_papers(citing_papers)
                 return citing_papers
@@ -189,7 +187,11 @@ class RetrievalClient:
         return []
 
     def search_papers(
-        self, query: str, k: int = 5, min_year: Optional[int] = None, max_year: Optional[int] = None
+        self,
+        query: str,
+        k: int = 5,
+        min_year: Optional[int] = None,
+        max_year: Optional[int] = None,
     ) -> List[Paper]:
         """Search OpenAlex and Semantic Scholar for papers matching a title-like ``query``.
 
@@ -197,7 +199,9 @@ class RetrievalClient:
         to keep inputs aligned with DOI/title-centric workflows.
         """
 
-        papers = self._search_service.search(query, k=k, min_year=min_year, max_year=max_year)
+        papers = self._search_service.search(
+            query, k=k, min_year=min_year, max_year=max_year
+        )
         self.session_index.add_papers(papers)
         return papers
 

@@ -21,9 +21,7 @@ class RetrievalSettings:
     semanticscholar_base_url: Optional[str] = None
     semanticscholar_api_key: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
-    enable_grobid: bool = False
     grobid_base_url: Optional[str] = None
-    enable_unpaywall: bool = True
     # Practical caps to avoid unbounded citation crawls.
     citation_limit: int = 500
     openalex_citation_max_pages: int = 5
