@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import re
 from typing import List, Optional
 
@@ -9,6 +10,8 @@ import requests
 from retrieval.core.models import EvidenceChunk, Paper
 from retrieval.providers.clients.grobid import GrobidClient
 from retrieval.services.paper_chunker_service import PaperChunkerService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -84,9 +87,17 @@ class EvidenceService:
                         )
                         for pc in paper_chunks
                     ]
-                except Exception:
-                    # Fall back below
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Full-text chunking failed (%s); falling back to title/abstract",
+                        type(exc).__name__,
+                        extra={
+                            "doi": paper.doi,
+                            "title": paper.title,
+                            "pdf_url": paper.pdf_url,
+                        },
+                        exc_info=exc,
+                    )
 
         # Fallback path: title + abstract (still citeable)
         title = (paper.title or "").strip()
