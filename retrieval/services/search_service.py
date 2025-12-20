@@ -195,7 +195,14 @@ class PaperSearchService:
         merged_results = [self.merge_service.merge(grouped[key]) for key in order]
         raw_results = [paper for key in order for paper in grouped[key]] if include_raw else []
         reranked_results = self._rerank_locally(merged_results, query=query)
-        return reranked_results[:k], raw_results
+        max_upgrade_attempts = max(k * 2, 10)
+        doi_backed = self._select_top_k_doi_backed(
+            reranked_results,
+            query=query,
+            k=k,
+            max_upgrade_attempts=max_upgrade_attempts,
+        )
+        return doi_backed, raw_results
 
     def search_by_doi(self, doi: str) -> Optional[Paper]:
         candidates: List[Paper] = []
@@ -340,6 +347,70 @@ class PaperSearchService:
             self._append_unique([paper], resolved, seen)
 
         return resolved, seen
+
+    def _upgrade_to_doi_backed(
+        self, paper: Paper, *, query_fallback_title: str
+    ) -> Optional[Paper]:
+        doi = normalize_doi(paper.doi)
+        if doi:
+            return paper
+
+        title = (paper.title or query_fallback_title or "").strip()
+        if not title:
+            return None
+
+        resolved_doi = self.doi_resolver.resolve_doi_from_title(
+            title,
+            expected_authors=paper.authors or None,
+        )
+        if not resolved_doi:
+            return None
+
+        canonical = self._fetch_canonical_by_doi(resolved_doi)
+        if canonical and normalize_doi(canonical.doi):
+            return canonical
+
+        return None
+
+    def _select_top_k_doi_backed(
+        self,
+        merged_ranked: List[Paper],
+        *,
+        query: str,
+        k: int,
+        max_upgrade_attempts: int,
+    ) -> List[Paper]:
+        selected: List[Paper] = []
+        seen_dois: Set[str] = set()
+        upgrade_attempts = 0
+
+        for paper in merged_ranked:
+            if len(selected) >= k:
+                break
+
+            doi = normalize_doi(paper.doi)
+            if doi:
+                if doi not in seen_dois:
+                    seen_dois.add(doi)
+                    selected.append(paper)
+                continue
+
+            if upgrade_attempts >= max_upgrade_attempts:
+                continue
+
+            upgrade_attempts += 1
+            upgraded = self._upgrade_to_doi_backed(paper, query_fallback_title=query)
+            if not upgraded:
+                continue
+
+            upgraded_doi = normalize_doi(upgraded.doi)
+            if not upgraded_doi or upgraded_doi in seen_dois:
+                continue
+
+            seen_dois.add(upgraded_doi)
+            selected.append(upgraded)
+
+        return selected
 
     def _fetch_canonical_by_doi(self, doi: str) -> Optional[Paper]:
         crossref_work = self.crossref.works_by_doi(doi)
