@@ -16,9 +16,9 @@ help:
 # Docker targets
 up:
 	docker compose up -d
-	@echo "Waiting for services to become healthy..."
-	@timeout 120 sh -c 'until docker compose ps | grep -q "healthy"; do sleep 2; done' || \
-		(echo "Services did not become healthy in time" && exit 1)
+	@echo "Waiting for services to be ready..."
+	@timeout 120 sh -c 'until curl -fsS http://localhost:8070/api/isalive >/dev/null; do sleep 2; done' || \
+		(echo "Services did not become ready in time" && exit 1)
 	@echo "Services are ready!"
 
 down:
