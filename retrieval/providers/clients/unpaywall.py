@@ -46,7 +46,7 @@ class UnpaywallRecord:
 
 
 @dataclass
-class FullTextCandidate:
+class UnpaywallFullTextCandidate:
     """Unified representation of an acquired full-text URL."""
 
     source: str
@@ -124,7 +124,7 @@ def resolve_full_text(
     doi: str,
     title: str,
     unpaywall_client: UnpaywallClient,
-) -> Optional[FullTextCandidate]:
+) -> Optional[UnpaywallFullTextCandidate]:
     """Resolve full text via Unpaywall without scraping or alternate fallbacks.
 
     The helper keeps network concerns inside the provided client and returns the
@@ -139,7 +139,7 @@ def resolve_full_text(
         record = None
 
     if record and record.best_pdf_url:
-        return FullTextCandidate(
+        return UnpaywallFullTextCandidate(
             source="unpaywall",
             url=record.best_pdf_url,
             pdf_url=record.best_pdf_url,

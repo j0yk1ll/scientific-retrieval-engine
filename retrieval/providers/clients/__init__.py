@@ -16,7 +16,7 @@ from .grobid import GrobidClient
 from .openalex import OpenAlexClient, OpenAlexWork
 from .semanticscholar import DEFAULT_FIELDS as SEMANTICSCHOLAR_DEFAULT_FIELDS
 from .semanticscholar import SemanticScholarClient, SemanticScholarPaper
-from .unpaywall import FullTextCandidate, OpenAccessLocation, UnpaywallClient, UnpaywallRecord
+from .unpaywall import OpenAccessLocation, UnpaywallClient, UnpaywallRecord, UnpaywallFullTextCandidate
 
 __all__ = [
     "BaseHttpClient",
@@ -25,7 +25,6 @@ __all__ = [
     "CrossrefWork",
     "DataCiteClient",
     "DataCiteWork",
-    "FullTextCandidate",
     "GrobidClient",
     "NotFoundError",
     "OpenAccessLocation",
@@ -38,6 +37,7 @@ __all__ = [
     "SemanticScholarPaper",
     "UnauthorizedError",
     "UnpaywallClient",
+    "UnpaywallFullTextCandidate",
     "UnpaywallRecord",
     "ForbiddenError",
     "UpstreamError",
