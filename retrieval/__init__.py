@@ -7,7 +7,7 @@ from typing import List, Optional
 import atexit
 
 from .api import RetrievalClient
-from .core.models import Citation, EvidenceChunk, Paper
+from .core.models import EvidenceChunk, Paper
 
 _default_client: Optional[RetrievalClient] = None
 _clear_callback_registered = False
@@ -58,12 +58,6 @@ def gather_evidence(query: str) -> List[EvidenceChunk]:
     return get_default_client().gather_evidence(query)
 
 
-def search_citations(paper_id: str) -> List[Citation]:
-    """Search OpenCitations for paper citations."""
-
-    return get_default_client().search_citations(paper_id)
-
-
 def clear_papers_and_evidence() -> None:
     """Clear all current papers and evidence from the session index."""
 
@@ -75,7 +69,6 @@ __all__ = [
     "search_paper_by_doi",
     "search_paper_by_title",
     "gather_evidence",
-    "search_citations",
     "clear_papers_and_evidence",
     "get_default_client",
 ]

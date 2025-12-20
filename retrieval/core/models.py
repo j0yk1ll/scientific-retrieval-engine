@@ -27,36 +27,6 @@ class Paper:
     resolved_pdf_url: Optional[str] = None
     is_oa: Optional[bool] = None
     authors: List[str] = field(default_factory=list)
-    provenance: Optional["PaperProvenance"] = None
-
-
-@dataclass
-class Citation:
-    """Simple citation representation from OpenCitations."""
-
-    citing: str
-    cited: str
-    creation: Optional[str] = None
-
-
-@dataclass
-class FieldEvidence:
-    """Represents the source and raw value used for a specific field."""
-
-    source: str
-    value: Any
-
-
-@dataclass
-class PaperProvenance:
-    """Tracks how a merged Paper was constructed."""
-
-    sources: List[str] = field(default_factory=list)
-    source_records: Dict[str, str] = field(default_factory=dict)
-    field_sources: Dict[str, FieldEvidence] = field(default_factory=dict)
-
-
-__all__ = ["Paper", "Citation", "FieldEvidence", "PaperProvenance"]
 
 
 @dataclass
@@ -74,4 +44,4 @@ class EvidenceChunk:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-__all__.append("EvidenceChunk")
+__all__ = ["Paper", "EvidenceChunk"]

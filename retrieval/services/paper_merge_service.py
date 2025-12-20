@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from retrieval.core.identifiers import normalize_doi
-from retrieval.core.models import Paper, FieldEvidence, PaperProvenance
+from retrieval.core.models import Paper
 
 
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
@@ -32,33 +32,15 @@ class PaperMergeService:
             raise ValueError("Cannot merge an empty collection of papers")
 
         primary_index = self._primary_source_index(papers)
-        provenance = self._build_provenance(papers)
-
-        field_priorities = {
-            "doi": self.priority_groups,
-            "year": self.priority_groups,
-            "venue": self.priority_groups,
-            "url": self.priority_groups,
-            "abstract": self._normalize_priority_spec(
-                (("openalex", "semanticscholar"), *self.priority_groups)
-            ),
-            "authors": self._normalize_priority_spec(
-                (("openalex", "semanticscholar"), *self.priority_groups)
-            ),
-        }
-
-        selections: Dict[str, Tuple[Any, FieldEvidence | None]] = {}
-
-        doi_value, doi_evidence = self._select_field(
+        doi_value = self._select_field(
             papers,
             "doi",
             self._is_non_empty,
-            priority_order=field_priorities["doi"],
+            priority_order=self.priority_groups,
             transform=normalize_doi,
         )
-        selections["doi"] = (doi_value, doi_evidence)
 
-        selections["paper_id"] = self._select_field(
+        paper_id_value = self._select_field(
             papers,
             "paper_id",
             self._is_non_empty,
@@ -66,80 +48,74 @@ class PaperMergeService:
             priority_order=self.priority_groups,
         )
 
-        selections["title"] = self._select_field(
-            papers, "title", self._is_non_empty, priority_order=self.priority_groups
+        title_value = self._select_field(
+            papers,
+            "title",
+            self._is_non_empty,
+            priority_order=self.priority_groups,
         )
-        selections["abstract"] = self._select_field(
+        abstract_value = self._select_field(
             papers,
             "abstract",
             self._is_non_empty,
-            priority_order=field_priorities["abstract"],
+            priority_order=self._normalize_priority_spec(
+                (("openalex", "semanticscholar"), *self.priority_groups)
+            ),
             tie_breaker=self._prefer_longer_text,
         )
-        selections["year"] = self._select_field(
-            papers, "year", self._is_not_none, priority_order=field_priorities["year"]
+        year_value = self._select_field(
+            papers,
+            "year",
+            self._is_not_none,
+            priority_order=self.priority_groups,
         )
-        selections["venue"] = self._select_field(
-            papers, "venue", self._is_non_empty, priority_order=field_priorities["venue"]
+        venue_value = self._select_field(
+            papers,
+            "venue",
+            self._is_non_empty,
+            priority_order=self.priority_groups,
         )
-        selections["url"] = self._select_field(
-            papers, "url", self._is_non_empty, priority_order=field_priorities["url"]
+        url_value = self._select_field(
+            papers,
+            "url",
+            self._is_non_empty,
+            priority_order=self.priority_groups,
         )
-        selections["pdf_url"] = self._select_field(
+        pdf_url_value = self._select_field(
             papers,
             "pdf_url",
             self._is_non_empty,
             priority_order=self.priority_groups,
         )
-        selections["is_oa"] = self._select_field(
+        is_oa_value = self._select_field(
             papers, "is_oa", self._is_not_none, priority_order=self.priority_groups
         )
-        selections["authors"] = self._select_field(
+        authors_value = self._select_field(
             papers,
             "authors",
             self._has_authors,
-            priority_order=field_priorities["authors"],
+            priority_order=self._normalize_priority_spec(
+                (("openalex", "semanticscholar"), *self.priority_groups)
+            ),
             tie_breaker=self._prefer_more_authors,
         )
 
-        primary_source = self._determine_primary_source(
-            selections, fallback_source=papers[primary_index].source
-        )
+        primary_source = papers[primary_index].source
 
-        merged = Paper(
-            paper_id=selections["paper_id"][0] or doi_value or papers[primary_index].paper_id,
-            title=selections["title"][0] or "",
+        return Paper(
+            paper_id=paper_id_value or doi_value or papers[primary_index].paper_id,
+            title=title_value or "",
             doi=doi_value,
-            abstract=selections["abstract"][0],
-            year=selections["year"][0],
-            venue=selections["venue"][0],
+            abstract=abstract_value,
+            year=year_value,
+            venue=venue_value,
             source=primary_source,
             primary_source=primary_source,
-            url=selections["url"][0],
-            pdf_url=selections["pdf_url"][0],
-            is_oa=selections["is_oa"][0],
-            authors=selections["authors"][0] or [],
-            provenance=provenance,
+            url=url_value,
+            pdf_url=pdf_url_value,
+            is_oa=is_oa_value,
+            authors=authors_value or [],
         )
-
-        self._record_field_sources(
-            selections,
-            provenance,
-            {
-                "paper_id": self._is_non_empty,
-                "title": self._is_non_empty,
-                "abstract": self._is_non_empty,
-                "year": self._is_not_none,
-                "venue": self._is_non_empty,
-                "url": self._is_non_empty,
-                "pdf_url": self._is_non_empty,
-                "is_oa": self._is_not_none,
-                "authors": self._has_authors,
-                "doi": self._is_non_empty,
-            },
-        )
-
-        return merged
 
     def _rank_key(self, paper: Paper, position: int) -> Tuple[int, int, int]:
         doi_rank = 0 if normalize_doi(paper.doi) else 1
@@ -160,16 +136,6 @@ class PaperMergeService:
         ranked.sort(key=lambda pair: self._rank_key(pair[1], pair[0]))
         return ranked[0][0]
 
-    def _build_provenance(self, papers: Iterable[Paper]) -> PaperProvenance:
-        sources: List[str] = []
-        source_records: Dict[str, str] = {}
-        for paper in papers:
-            if paper.source not in sources:
-                sources.append(paper.source)
-            if paper.paper_id:
-                source_records.setdefault(paper.source, paper.paper_id)
-        return PaperProvenance(sources=sources, source_records=source_records)
-
     def _select_field(
         self,
         papers: Sequence[Paper],
@@ -180,9 +146,8 @@ class PaperMergeService:
         priority_order: PrioritySpec | None = None,
         tie_breaker=None,
         transform=None,
-    ) -> Tuple[Any, FieldEvidence | None]:
+    ) -> Any:
         selected_value: Any | None = None
-        selected_evidence: FieldEvidence | None = None
         selected_rank: int | None = None
         selected_position: int | None = None
 
@@ -193,15 +158,14 @@ class PaperMergeService:
             value = transform(raw_value) if transform else raw_value
 
             if preferred_value is not None and value == preferred_value and predicate(value):
-                return value, FieldEvidence(source=paper.source, value=value)
+                return value
 
             if not predicate(value):
                 continue
 
             rank = self._source_rank(paper.source, priorities)
-            if selected_evidence is None:
+            if selected_rank is None:
                 selected_value = value
-                selected_evidence = FieldEvidence(source=paper.source, value=value)
                 selected_rank = rank
                 selected_position = position
                 continue
@@ -217,57 +181,15 @@ class PaperMergeService:
                     elif tie_decision is False:
                         better_candidate = False
                     else:
-                        better_candidate = position < selected_position  # type: ignore[operator]
+                        better_candidate = position < (selected_position or 0)
                 else:
-                    better_candidate = position < selected_position  # type: ignore[operator]
+                    better_candidate = position < (selected_position or 0)
 
             if better_candidate:
                 selected_value = value
-                selected_evidence = FieldEvidence(source=paper.source, value=value)
                 selected_rank = rank
                 selected_position = position
-        return selected_value, selected_evidence
-
-    def _determine_primary_source(
-        self,
-        selections: Dict[str, Tuple[Any, FieldEvidence | None]],
-        *,
-        fallback_source: str,
-    ) -> str:
-        identifier_fields = ("doi", "title", "paper_id")
-        for field_name in identifier_fields:
-            value, evidence = selections.get(field_name, (None, None))
-            if evidence and self._is_non_empty(value):
-                return evidence.source
-
-        counts: Dict[str, int] = {}
-        for value, evidence in selections.values():
-            if evidence:
-                counts[evidence.source] = counts.get(evidence.source, 0) + 1
-
-        if counts:
-            sorted_sources = sorted(
-                counts.items(),
-                key=lambda item: (
-                    -item[1],
-                    self._source_rank(item[0], self.priority_groups),
-                    item[0],
-                ),
-            )
-            return sorted_sources[0][0]
-
-        return fallback_source
-
-    def _record_field_sources(
-        self,
-        selections: Dict[str, Tuple[Any, FieldEvidence | None]],
-        provenance: PaperProvenance,
-        field_predicates: Dict[str, Any],
-    ) -> None:
-        for field_name, predicate in field_predicates.items():
-            value, evidence = selections.get(field_name, (None, None))
-            if evidence and predicate(value):
-                provenance.field_sources[field_name] = evidence
+        return selected_value
 
     @staticmethod
     def _normalize_priority_spec(
