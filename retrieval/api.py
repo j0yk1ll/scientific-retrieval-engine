@@ -35,7 +35,12 @@ from .providers.clients.openalex import OpenAlexClient
 from .providers.clients.opencitations import OpenCitationsClient
 from .providers.clients.semanticscholar import SemanticScholarClient
 from .providers.clients.base import ClientError
-from .providers.clients.unpaywall import FullTextCandidate, UnpaywallClient, resolve_full_text
+from .providers.clients.unpaywall import FullTextCandidate as LegacyFullTextCandidate
+from .providers.clients.unpaywall import UnpaywallClient
+from .services.full_text_resolver_service import (
+    FullTextCandidate as ServiceFullTextCandidate,
+    FullTextResolverService,
+)
 from .services.doi_resolver_service import DoiResolverService
 from .services.evidence_service import EvidenceConfig, EvidenceService
 from .services.paper_enrichment_service import PaperEnrichmentService
@@ -137,6 +142,9 @@ class RetrievalClient:
             PaperEnrichmentService(unpaywall_client=self._unpaywall_client)
             if self._unpaywall_client
             else None
+        )
+        self._full_text_resolver = FullTextResolverService(
+            unpaywall_client=self._unpaywall_client
         )
 
         # Optional: only useful if a GROBID service is running.
@@ -283,12 +291,39 @@ class RetrievalClient:
             citations.append(Citation(citing=citing_id, cited=cited_id, creation=None))
         return citations
 
-    def resolve_full_text(self, *, doi: str, title: str) -> Optional[FullTextCandidate]:
-        """Attempt to resolve full-text sources when Unpaywall is enabled."""
+    def resolve_full_text(self, *, doi: str, title: str) -> Optional[LegacyFullTextCandidate]:
+        """Attempt to resolve full-text sources via configured resolvers."""
 
-        if self._unpaywall_client is None:
+        def to_legacy_candidate(
+            candidate: ServiceFullTextCandidate,
+        ) -> LegacyFullTextCandidate:
+            return LegacyFullTextCandidate(
+                source=candidate.source,
+                url=candidate.pdf_url,
+                pdf_url=candidate.pdf_url,
+                metadata={
+                    "license": candidate.license,
+                    "version": candidate.version,
+                    "host_type": candidate.host_type,
+                    "is_best": candidate.is_best,
+                    "doi": doi,
+                    "title": title,
+                },
+            )
+
+        paper = Paper(
+            paper_id=doi or title,
+            title=title,
+            doi=doi,
+            abstract=None,
+            year=None,
+            venue=None,
+            source="manual",
+        )
+        resolution = self._full_text_resolver.resolve(paper)
+        if not resolution.candidates:
             return None
-        return resolve_full_text(doi=doi, title=title, unpaywall_client=self._unpaywall_client)
+        return to_legacy_candidate(resolution.candidates[0])
 
     def clear_papers_and_evidence(self) -> None:
         """Clear all papers and evidence for the current session."""
