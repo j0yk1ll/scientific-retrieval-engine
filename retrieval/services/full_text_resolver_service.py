@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import re
 from typing import List, Optional, Protocol, Sequence
 
-from retrieval.core.models import FieldEvidence, Paper, PaperProvenance
+from retrieval.core.models import Paper
 from retrieval.providers.clients.base import ClientError
 from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallClient
 
@@ -157,12 +157,6 @@ class FullTextResolverService:
         best = resolution.best
         if best and best.pdf_url:
             paper.resolved_pdf_url = best.pdf_url
-            provenance = paper.provenance or PaperProvenance()
-            provenance.field_sources["resolved_pdf_url"] = FieldEvidence(
-                source=best.source,
-                value=best.pdf_url or getattr(best, "url", None),
-            )
-            paper.provenance = provenance
         if resolution.oa_signal is True:
             paper.is_oa = True
         return paper
