@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import re
 from typing import List, Optional, Protocol, Sequence
 
-from retrieval.core.models import Paper
+from retrieval.core.models import FieldEvidence, Paper, PaperProvenance
 from retrieval.providers.clients.base import ClientError
 from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallClient
 
@@ -44,7 +44,7 @@ class UpstreamFieldsResolver:
 
 
 class ArxivDeterministicResolver:
-    name = "arxiv_deterministic"
+    name = "arxiv"
 
     _ARXIV_DOI_RE = re.compile(r"^10\.48550/arxiv\.(?P<id>.+)$", re.IGNORECASE)
 
@@ -74,7 +74,7 @@ class ArxivDeterministicResolver:
 
 
 class UnpaywallResolver:
-    name_best = "unpaywall_best"
+    name_best = "unpaywall"
     name_location = "unpaywall_location"
 
     def __init__(self, unpaywall_client: UnpaywallClient) -> None:
@@ -151,6 +151,21 @@ class FullTextResolverService:
         ordered = self._order_candidates(candidates)
         oa_signal = self._resolve_oa_signal(paper, ordered)
         return FullTextResolution(candidates=ordered, oa_signal=oa_signal)
+
+    def apply(self, paper: Paper) -> Paper:
+        resolution = self.resolve(paper)
+        best = resolution.best
+        if best and best.pdf_url:
+            paper.pdf_url = best.pdf_url
+            provenance = paper.provenance or PaperProvenance()
+            provenance.field_sources["pdf_url"] = FieldEvidence(
+                source=best.source,
+                value=best.pdf_url or getattr(best, "url", None),
+            )
+            paper.provenance = provenance
+        if resolution.oa_signal is True:
+            paper.is_oa = True
+        return paper
 
     @classmethod
     def _resolve_oa_signal(
