@@ -12,8 +12,8 @@ Example: lookup by DOI
 from retrieval.api import RetrievalClient
 
 client = RetrievalClient()
-papers = client.search_paper_by_doi("10.5555/example.doi")
-for paper in papers:
+paper = client.search_paper_by_doi("10.5555/example.doi")
+if paper:
     print(paper.title, paper.doi, paper.source)
 ```
 """
@@ -160,28 +160,32 @@ class RetrievalClient:
         self.session_index.add_papers(papers)
         return papers
 
-    def search_paper_by_doi(self, doi: str) -> List[Paper]:
+    def search_paper_by_doi(self, doi: str) -> Optional[Paper]:
         """Search for a paper by DOI across configured services.
 
         The input should be a DOI string (a ``https://doi.org/`` prefix is optional);
         arbitrary URLs are not resolved.
         """
 
-        papers = self._search_service.search_by_doi(doi)
+        paper = self._search_service.search_by_doi(doi)
+        if not paper:
+            return None
         if self._paper_enrichment_service:
-            papers = [self._paper_enrichment_service.enrich(paper) for paper in papers]
-        self.session_index.add_papers(papers)
-        return papers
+            paper = self._paper_enrichment_service.enrich(paper)
+        self.session_index.add_papers([paper])
+        return paper
 
-    def search_paper_by_title(self, title: str) -> List[Paper]:
+    def search_paper_by_title(self, title: str) -> Optional[Paper]:
         """Search for a paper by title.
 
         URL parsing and non-bibliographic identifiers are deliberately excluded.
         """
 
-        papers = self._search_service.search_by_title(title)
-        self.session_index.add_papers(papers)
-        return papers
+        paper = self._search_service.search_by_title(title)
+        if not paper:
+            return None
+        self.session_index.add_papers([paper])
+        return paper
 
     def gather_evidence(self, query: str) -> List[EvidenceChunk]:
         """Gather citeable evidence chunks (chunk text + originating paper reference)."""
