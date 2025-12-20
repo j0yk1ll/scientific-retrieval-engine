@@ -22,6 +22,11 @@ class FullTextCandidate:
 @dataclass(frozen=True)
 class FullTextResolution:
     candidates: List[FullTextCandidate]
+    oa_signal: Optional[bool] = None
+
+    @property
+    def best(self) -> Optional[FullTextCandidate]:
+        return self.candidates[0] if self.candidates else None
 
 
 class FullTextResolver(Protocol):
@@ -144,7 +149,22 @@ class FullTextResolverService:
         for resolver in self.resolvers:
             candidates.extend(resolver.resolve(paper))
         ordered = self._order_candidates(candidates)
-        return FullTextResolution(candidates=ordered)
+        oa_signal = self._resolve_oa_signal(paper, ordered)
+        return FullTextResolution(candidates=ordered, oa_signal=oa_signal)
+
+    @classmethod
+    def _resolve_oa_signal(
+        cls, paper: Paper, candidates: List[FullTextCandidate]
+    ) -> Optional[bool]:
+        if paper.is_oa is True:
+            return True
+        if any(candidate.source in cls._unpaywall_sources() for candidate in candidates):
+            return True
+        return None
+
+    @staticmethod
+    def _unpaywall_sources() -> set[str]:
+        return {UnpaywallResolver.name_best, UnpaywallResolver.name_location}
 
     @staticmethod
     def _order_candidates(candidates: List[FullTextCandidate]) -> List[FullTextCandidate]:
