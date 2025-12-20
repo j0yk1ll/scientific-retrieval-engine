@@ -19,9 +19,6 @@ class PaperMergeService:
         self.priority_groups: PriorityGroups = self._normalize_priority_spec(
             source_priority or DEFAULT_SOURCE_PRIORITY
         )
-        self.flat_priority_order: Tuple[str, ...] = tuple(
-            source for group in self.priority_groups for source in group
-        )
         self.source_priority: Dict[str, int] = {}
         for idx, group in enumerate(self.priority_groups):
             for source in group:
@@ -110,7 +107,6 @@ class PaperMergeService:
             year=year_value,
             venue=venue_value,
             source=primary_source,
-            primary_source=primary_source,
             url=url_value,
             pdf_url=pdf_url_value,
             is_oa=is_oa_value,

@@ -10,8 +10,7 @@ class Paper:
 
     ``source`` records the upstream provider that produced this specific record
     (e.g., ``"crossref"`` or ``"openalex"``). When multiple records are merged,
-    ``primary_source`` reflects the provider whose metadata won the merge and is
-    duplicated into ``source`` to preserve compatibility with existing callers.
+    ``source`` reflects the provider whose metadata won the merge.
     """
 
     paper_id: str
@@ -21,7 +20,6 @@ class Paper:
     year: Optional[int]
     venue: Optional[str]
     source: str
-    primary_source: Optional[str] = None
     url: Optional[str] = None
     pdf_url: Optional[str] = None
     resolved_pdf_url: Optional[str] = None

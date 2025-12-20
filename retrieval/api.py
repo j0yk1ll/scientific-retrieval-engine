@@ -35,12 +35,8 @@ from .providers.clients.datacite import DataCiteClient
 from .providers.clients.grobid import GrobidClient
 from .providers.clients.openalex import OpenAlexClient
 from .providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
-from .providers.clients.unpaywall import FullTextCandidate as LegacyFullTextCandidate
 from .providers.clients.unpaywall import UnpaywallClient
-from .services.full_text_resolver_service import (
-    FullTextCandidate as ServiceFullTextCandidate,
-    FullTextResolverService,
-)
+from .services.full_text_resolver_service import FullTextResolverService
 from .services.doi_resolver_service import DoiResolverService
 from .services.evidence_service import EvidenceConfig, EvidenceService
 from .services.paper_enrichment_service import PaperEnrichmentService
@@ -244,40 +240,6 @@ class RetrievalClient:
         chunks = self._evidence_service.gather(papers)
         self.session_index.evidence_chunks[query] = chunks
         return chunks
-
-    def resolve_full_text(self, *, doi: str, title: str) -> Optional[LegacyFullTextCandidate]:
-        """Attempt to resolve full-text sources via configured resolvers."""
-
-        def to_legacy_candidate(
-            candidate: ServiceFullTextCandidate,
-        ) -> LegacyFullTextCandidate:
-            return LegacyFullTextCandidate(
-                source=candidate.source,
-                url=candidate.pdf_url,
-                pdf_url=candidate.pdf_url,
-                metadata={
-                    "license": candidate.license,
-                    "version": candidate.version,
-                    "host_type": candidate.host_type,
-                    "is_best": candidate.is_best,
-                    "doi": doi,
-                    "title": title,
-                },
-            )
-
-        paper = Paper(
-            paper_id=doi or title,
-            title=title,
-            doi=doi,
-            abstract=None,
-            year=None,
-            venue=None,
-            source="manual",
-        )
-        resolution = self._full_text_resolver.resolve(paper)
-        if not resolution.candidates:
-            return None
-        return to_legacy_candidate(resolution.candidates[0])
 
     def clear_papers_and_evidence(self) -> None:
         """Clear all papers and evidence for the current session."""

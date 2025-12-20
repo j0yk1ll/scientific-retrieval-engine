@@ -47,7 +47,7 @@ class StubResolver:
         return None
 
 
-def test_search_by_doi_returns_datacite_when_primary_sources_missing():
+def test_search_by_doi_returns_datacite_when_other_sources_missing():
     datacite_paper = DataCiteWork(
         title="Deterministic DOI",
         doi="10.1234/missing",

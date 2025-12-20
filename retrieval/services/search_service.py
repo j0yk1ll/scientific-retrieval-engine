@@ -313,38 +313,6 @@ class PaperSearchService:
     def _normalize_hyphens(self, query: str) -> str:
         return query.replace("-", " ")
 
-    def _resolve_missing_dois(
-        self, query_title: str, papers: List[Paper]
-    ) -> tuple[List[Paper], Set[str]]:
-        resolved: List[Paper] = []
-        seen: Set[str] = set()
-
-        for paper in papers:
-            if paper.doi:
-                self._append_unique([paper], resolved, seen)
-                continue
-
-            resolved_doi = self.doi_resolver.resolve_doi_from_title(
-                paper.title or query_title, expected_authors=paper.authors or None
-            )
-            if resolved_doi:
-                canonical = self._fetch_canonical_by_doi(resolved_doi)
-                if canonical:
-                    logger.info(
-                        "Upgraded paper metadata via DOI resolution",
-                        extra={
-                            "title": paper.title or query_title,
-                            "doi": resolved_doi,
-                            "source": canonical.source,
-                        },
-                    )
-                    self._append_unique([canonical], resolved, seen)
-                    continue
-
-            self._append_unique([paper], resolved, seen)
-
-        return resolved, seen
-
     def _upgrade_to_doi_backed(
         self, paper: Paper, *, query_fallback_title: str
     ) -> Optional[Paper]:
