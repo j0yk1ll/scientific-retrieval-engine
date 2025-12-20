@@ -20,10 +20,6 @@ class SessionIndex:
     def _make_key(self, paper: Paper) -> Optional[str]:
         if paper.doi:
             return f"doi:{paper.doi}"
-
-        if paper.paper_id and paper.source:
-            return f"{paper.source}:{paper.paper_id}"
-
         return None
 
     def add_papers(self, items: List[Paper]) -> None:
@@ -33,16 +29,9 @@ class SessionIndex:
                 continue
             self.papers[key] = paper
 
-            if paper.doi:
-                # Preserve compatibility for callers that use raw DOIs as keys.
-                self.papers[paper.doi] = paper
-
     def get_paper(self, paper_id: str) -> Optional[Paper]:
-        paper = self.papers.get(paper_id)
-        if paper:
-            return paper
-
-        if paper_id and not paper_id.startswith("doi:"):
-            return self.papers.get(f"doi:{paper_id}")
-
-        return None
+        if not paper_id:
+            return None
+        if paper_id.startswith("doi:"):
+            return self.papers.get(paper_id)
+        return self.papers.get(f"doi:{paper_id}")
