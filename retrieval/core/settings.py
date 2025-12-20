@@ -22,6 +22,8 @@ class RetrievalSettings:
     semanticscholar_api_key: Optional[str] = None
     opencitations_base_url: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
+    enable_grobid: bool = False
+    grobid_base_url: Optional[str] = None
     enable_semanticscholar_citation_fallback: bool = True
     enable_openalex_citation_fallback: bool = True
     enable_unpaywall: bool = True

@@ -141,7 +141,11 @@ class RetrievalClient:
 
         # Optional: only useful if a GROBID service is running.
         # If you do not want full-text chunking, leave this as None.
-        self._grobid_client: GrobidClient | None = GrobidClient(session=self.session)
+        self._grobid_client: GrobidClient | None = (
+            GrobidClient(session=self.session, base_url=self.settings.grobid_base_url)
+            if getattr(self.settings, "enable_grobid", False)
+            else None
+        )
         self._evidence_service = EvidenceService(
             session=self.session,
             grobid=self._grobid_client,
