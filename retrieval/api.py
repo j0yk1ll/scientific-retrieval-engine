@@ -182,7 +182,6 @@ class RetrievalClient:
                 citing_records = self._semanticscholar_client.get_citations(
                     paper_identifier,
                     limit=getattr(self.settings, "citation_limit", 500),
-                    fields=DEFAULT_FIELDS,
                 )
                 citing_papers = [semanticscholar_paper_to_paper(p) for p in citing_records]
                 citing_papers = self._dedupe_citing_papers(citing_papers)

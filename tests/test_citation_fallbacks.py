@@ -40,10 +40,9 @@ class DummySemanticScholarClient:
         self,
         paper_id: str,
         *,
-        fields: str = "paperId,externalIds,doi",
         limit: int = 500,
     ):
-        self.calls.append((paper_id, fields, limit))
+        self.calls.append((paper_id, limit))
         return [
             SemanticScholarPaper(
                 paper_id="SS-1",
