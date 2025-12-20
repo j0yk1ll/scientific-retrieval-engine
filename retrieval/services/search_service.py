@@ -230,17 +230,19 @@ class PaperSearchService:
         if not title:
             return None
 
-        results = self.search(title, k=5)
-        if not results:
+        merged, raw = self.search_with_raw(title, k=5, include_raw=True)
+
+        if merged:
+            return merged[0]
+
+        best_raw = raw[0] if raw else None
+        candidate_title = (best_raw.title if best_raw and best_raw.title else title).strip()
+        if not candidate_title:
             return None
 
-        best = results[0]
-        if best.doi:
-            return best
-
         resolved_doi = self.doi_resolver.resolve_doi_from_title(
-            best.title or title,
-            expected_authors=best.authors or None,
+            candidate_title,
+            expected_authors=(best_raw.authors if best_raw else None) or None,
         )
         if not resolved_doi:
             return None
