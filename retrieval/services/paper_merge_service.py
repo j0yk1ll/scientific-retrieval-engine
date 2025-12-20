@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 from retrieval.core.identifiers import normalize_doi
-from retrieval.core.models import Paper, PaperEvidence, PaperProvenance
+from retrieval.core.models import Paper, FieldEvidence, PaperProvenance
 
 
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
@@ -47,7 +47,7 @@ class PaperMergeService:
             ),
         }
 
-        selections: Dict[str, Tuple[Any, PaperEvidence | None]] = {}
+        selections: Dict[str, Tuple[Any, FieldEvidence | None]] = {}
 
         doi_value, doi_evidence = self._select_field(
             papers,
@@ -180,9 +180,9 @@ class PaperMergeService:
         priority_order: PrioritySpec | None = None,
         tie_breaker=None,
         transform=None,
-    ) -> Tuple[Any, PaperEvidence | None]:
+    ) -> Tuple[Any, FieldEvidence | None]:
         selected_value: Any | None = None
-        selected_evidence: PaperEvidence | None = None
+        selected_evidence: FieldEvidence | None = None
         selected_rank: int | None = None
         selected_position: int | None = None
 
@@ -193,7 +193,7 @@ class PaperMergeService:
             value = transform(raw_value) if transform else raw_value
 
             if preferred_value is not None and value == preferred_value and predicate(value):
-                return value, PaperEvidence(source=paper.source, value=value)
+                return value, FieldEvidence(source=paper.source, value=value)
 
             if not predicate(value):
                 continue
@@ -201,7 +201,7 @@ class PaperMergeService:
             rank = self._source_rank(paper.source, priorities)
             if selected_evidence is None:
                 selected_value = value
-                selected_evidence = PaperEvidence(source=paper.source, value=value)
+                selected_evidence = FieldEvidence(source=paper.source, value=value)
                 selected_rank = rank
                 selected_position = position
                 continue
@@ -223,14 +223,14 @@ class PaperMergeService:
 
             if better_candidate:
                 selected_value = value
-                selected_evidence = PaperEvidence(source=paper.source, value=value)
+                selected_evidence = FieldEvidence(source=paper.source, value=value)
                 selected_rank = rank
                 selected_position = position
         return selected_value, selected_evidence
 
     def _determine_primary_source(
         self,
-        selections: Dict[str, Tuple[Any, PaperEvidence | None]],
+        selections: Dict[str, Tuple[Any, FieldEvidence | None]],
         *,
         fallback_source: str,
     ) -> str:
@@ -260,7 +260,7 @@ class PaperMergeService:
 
     def _record_field_sources(
         self,
-        selections: Dict[str, Tuple[Any, PaperEvidence | None]],
+        selections: Dict[str, Tuple[Any, FieldEvidence | None]],
         provenance: PaperProvenance,
         field_predicates: Dict[str, Any],
     ) -> None:

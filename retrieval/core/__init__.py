@@ -2,14 +2,14 @@
 
 from .identifiers import normalize_doi, normalize_title
 from .matching import jaccard, title_tokens
-from .models import Citation, Paper, PaperEvidence, PaperProvenance
+from .models import Citation, Paper, FieldEvidence, PaperProvenance
 from .session import SessionIndex
 from .settings import RetrievalSettings, load_dotenv_from_root
 
 __all__ = [
     "Citation",
     "Paper",
-    "PaperEvidence",
+    "FieldEvidence",
     "PaperProvenance",
     "SessionIndex",
     "RetrievalSettings",

@@ -39,7 +39,7 @@ class Citation:
 
 
 @dataclass
-class PaperEvidence:
+class FieldEvidence:
     """Represents the source and raw value used for a specific field."""
 
     source: str
@@ -52,10 +52,10 @@ class PaperProvenance:
 
     sources: List[str] = field(default_factory=list)
     source_records: Dict[str, str] = field(default_factory=dict)
-    field_sources: Dict[str, PaperEvidence] = field(default_factory=dict)
+    field_sources: Dict[str, FieldEvidence] = field(default_factory=dict)
 
 
-__all__ = ["Paper", "Citation", "PaperEvidence", "PaperProvenance"]
+__all__ = ["Paper", "Citation", "FieldEvidence", "PaperProvenance"]
 
 
 @dataclass
