@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-import re
 from typing import List, Optional
 
 import requests
 
 from retrieval.core.models import EvidenceChunk, Paper
 from retrieval.providers.clients.grobid import GrobidClient
+from retrieval.services.full_text_resolver_service import FullTextResolverService
 from retrieval.services.paper_chunker_service import PaperChunkerService
 
 logger = logging.getLogger(__name__)
@@ -34,10 +34,12 @@ class EvidenceService:
         *,
         session: requests.Session,
         grobid: Optional[GrobidClient] = None,
+        full_text_resolver: Optional[FullTextResolverService] = None,
         config: Optional[EvidenceConfig] = None,
     ) -> None:
         self.session = session
         self.grobid = grobid
+        self.full_text_resolver = full_text_resolver
         self.config = config or EvidenceConfig()
 
     def gather(self, papers: List[Paper]) -> List[EvidenceChunk]:
@@ -47,15 +49,16 @@ class EvidenceService:
         return out
 
     def _paper_to_evidence(self, paper: Paper) -> List[EvidenceChunk]:
-        # Try deterministic PDF inference (e.g., arXiv) before full-text path.
-        if not paper.pdf_url:
-            inferred = _infer_pdf_url(paper)
-            if inferred:
-                paper.pdf_url = inferred
+        resolved_pdf_url = paper.pdf_url
+        if self.full_text_resolver:
+            resolution = self.full_text_resolver.resolve(paper)
+            best = resolution.best
+            if best:
+                resolved_pdf_url = best.pdf_url or getattr(best, "url", None)
 
         # Full-text path (PDF -> GROBID -> TEI -> chunks)
-        if self.grobid and paper.pdf_url:
-            pdf_bytes = self._download_pdf(paper.pdf_url)
+        if self.grobid and resolved_pdf_url:
+            pdf_bytes = self._download_pdf(resolved_pdf_url)
             if pdf_bytes:
                 try:
                     tei = self.grobid.process_fulltext(pdf_bytes)
@@ -76,7 +79,7 @@ class EvidenceService:
                             section=pc.section,
                             content=pc.content,
                             paper_url=paper.url,
-                            pdf_url=paper.pdf_url,
+                            pdf_url=resolved_pdf_url,
                             metadata={
                                 "token_count": pc.token_count,
                                 "section_index": pc.section_index,
@@ -94,7 +97,7 @@ class EvidenceService:
                         extra={
                             "doi": paper.doi,
                             "title": paper.title,
-                            "pdf_url": paper.pdf_url,
+                            "pdf_url": resolved_pdf_url,
                         },
                         exc_info=exc,
                     )
@@ -115,7 +118,7 @@ class EvidenceService:
                 section="Title/Abstract",
                 content=content,
                 paper_url=paper.url,
-                pdf_url=paper.pdf_url,
+                pdf_url=resolved_pdf_url,
                 metadata={"fallback": True},
             )
         ]
@@ -138,22 +141,3 @@ class EvidenceService:
         except Exception:
             return None
         return None
-
-
-_ARXIV_DOI_RE = re.compile(r"^10\.48550/arxiv\.(?P<id>.+)$", re.IGNORECASE)
-
-
-def _infer_pdf_url(paper: Paper) -> Optional[str]:
-    doi = (paper.doi or "").strip()
-    if doi:
-        m = _ARXIV_DOI_RE.match(doi)
-        if m:
-            arxiv_id = m.group("id")
-            return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    url = (paper.url or "").strip()
-    # Common arXiv landing-page patterns
-    if "arxiv.org/abs/" in url:
-        arxiv_id = url.split("arxiv.org/abs/", 1)[1].split("?", 1)[0]
-        if arxiv_id:
-            return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-    return None
