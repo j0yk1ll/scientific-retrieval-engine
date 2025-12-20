@@ -85,7 +85,6 @@ class PaperSearchService:
             min_year=min_year,
             max_year=max_year,
             include_raw=False,
-            openalex_extra_pages=0,
         )
         return merged
 
@@ -97,13 +96,9 @@ class PaperSearchService:
         min_year: Optional[int] = None,
         max_year: Optional[int] = None,
         include_raw: bool = True,
-        use_openalex_cursor: bool = False,
-        openalex_extra_pages: int = 0,
     ) -> Tuple[List[Paper], List[Paper]]:
         if not query:
             return [], []
-
-        _ = use_openalex_cursor, openalex_extra_pages
 
         per_pass = k * self.candidate_multiplier
 
@@ -429,20 +424,6 @@ class PaperSearchService:
         if semantic_record:
             return semanticscholar_paper_to_paper(semantic_record)
         return None
-
-    def _search_openalex(
-        self,
-        query: str,
-        *,
-        per_page: int,
-        min_year: Optional[int],
-        max_year: Optional[int],
-        cursor: str = "*",
-    ) -> Tuple[List, Optional[str]]:
-        filters = self._build_openalex_filters(min_year=min_year, max_year=max_year)
-        return self.openalex.search_works(
-            query, per_page=per_page, cursor=cursor, filters=filters or None
-        )
 
     def _build_openalex_filters(
         self, *, min_year: Optional[int], max_year: Optional[int]
