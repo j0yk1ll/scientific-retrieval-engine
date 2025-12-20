@@ -92,10 +92,11 @@ def main() -> None:
         print(f"--- search_citations('{args.doi}') returned {len(citations) if citations else 0} items ---")
         if citations:
             for i, c in enumerate(citations[:5], start=1):
-                if hasattr(c, "title"):
-                    print(f"{i}. {getattr(c, 'title')}")
-                else:
-                    print(f"{i}. {c}")
+                title = getattr(c, "title", "<no title>")
+                doi = getattr(c, "doi", "<no doi>")
+                year = getattr(c, "year", "<no year>")
+                authors = ", ".join(getattr(c, "authors", []) or [])
+                print(f"{i}. {title} ({year}) — DOI: {doi} — Authors: {authors or '<no authors>'}")
         print()
     except Exception as e:  # pragma: no cover - demo runner
         print("search_citations error:", e)

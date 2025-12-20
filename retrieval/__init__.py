@@ -52,6 +52,12 @@ def search_paper_by_title(title: str) -> Optional[Paper]:
     return get_default_client().search_paper_by_title(title)
 
 
+def search_citations(doi: str) -> List[Paper]:
+    """Search for papers that cite the given DOI."""
+
+    return get_default_client().search_citations(doi)
+
+
 def gather_evidence(query: str) -> List[EvidenceChunk]:
     """Gather evidence from papers given a specific query."""
 
@@ -68,6 +74,7 @@ __all__ = [
     "search_papers",
     "search_paper_by_doi",
     "search_paper_by_title",
+    "search_citations",
     "gather_evidence",
     "clear_papers_and_evidence",
     "get_default_client",

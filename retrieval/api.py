@@ -20,18 +20,21 @@ if paper:
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 import requests
 
+from .core.identifiers import normalize_doi
 from .core.models import EvidenceChunk, Paper
 from .core.session import SessionIndex
 from .core.settings import RetrievalSettings
+from .providers.adapters import openalex_work_to_paper, semanticscholar_paper_to_paper
+from .providers.clients.base import ClientError
 from .providers.clients.crossref import CrossrefClient
 from .providers.clients.datacite import DataCiteClient
 from .providers.clients.grobid import GrobidClient
 from .providers.clients.openalex import OpenAlexClient
-from .providers.clients.semanticscholar import SemanticScholarClient
+from .providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
 from .providers.clients.unpaywall import FullTextCandidate as LegacyFullTextCandidate
 from .providers.clients.unpaywall import UnpaywallClient
 from .services.full_text_resolver_service import (
@@ -77,6 +80,7 @@ class RetrievalClient:
             base_url=self.settings.openalex_base_url,
             timeout=self.settings.timeout,
         )
+        self._openalex_client = openalex_client
 
         crossref_client = CrossrefClient(
             session=self.session,
@@ -98,6 +102,7 @@ class RetrievalClient:
             timeout=self.settings.timeout,
             api_key=self.settings.semanticscholar_api_key,
         )
+        self._semanticscholar_client = semanticscholar_client
 
         merge_service = PaperMergeService(
             source_priority=["crossref", "datacite", "openalex", "semanticscholar"]
@@ -146,6 +151,47 @@ class RetrievalClient:
             full_text_resolver=self._full_text_resolver,
             config=EvidenceConfig(),
         )
+
+    def search_citations(self, doi: str) -> List[Paper]:
+        normalized = normalize_doi(doi)
+        if not normalized:
+            return []
+
+        # 1) Prefer OpenAlex citing works
+        try:
+            work = self._openalex_client.get_work_by_doi(normalized)
+            if work and work.openalex_id:
+                citing_works = self._openalex_client.get_citing_works(
+                    work.openalex_id,
+                    max_pages=getattr(self.settings, "openalex_citation_max_pages", 5),
+                )
+                citing_papers = [openalex_work_to_paper(w) for w in citing_works]
+                citing_papers = self._dedupe_citing_papers(citing_papers)
+                citing_papers = self._enforce_doi_backed_citing_papers(citing_papers)
+                return citing_papers
+        except ClientError:
+            pass
+
+        # 2) Fallback to Semantic Scholar citing papers
+        try:
+            seed = self._semanticscholar_client.get_by_doi(
+                normalized, fields=DEFAULT_FIELDS
+            )
+            if seed:
+                paper_identifier = f"DOI:{normalized}"
+                citing_records = self._semanticscholar_client.get_citations(
+                    paper_identifier,
+                    limit=getattr(self.settings, "citation_limit", 500),
+                    fields=DEFAULT_FIELDS,
+                )
+                citing_papers = [semanticscholar_paper_to_paper(p) for p in citing_records]
+                citing_papers = self._dedupe_citing_papers(citing_papers)
+                citing_papers = self._enforce_doi_backed_citing_papers(citing_papers)
+                return citing_papers
+        except ClientError:
+            pass
+
+        return []
 
     def search_papers(
         self, query: str, k: int = 5, min_year: Optional[int] = None, max_year: Optional[int] = None
@@ -238,3 +284,68 @@ class RetrievalClient:
         """Clear all papers and evidence for the current session."""
 
         self.session_index.reset()
+
+    def _dedupe_citing_papers(self, papers: List[Paper]) -> List[Paper]:
+        out: List[Paper] = []
+        seen: Set[str] = set()
+
+        for p in papers:
+            doi = normalize_doi(p.doi)
+            if doi:
+                key = f"doi:{doi}"
+            else:
+                key = (
+                    f"{(p.title or '').strip().lower()}|{p.year or ''}|"
+                    f"{(p.authors[0] if p.authors else '').strip().lower()}"
+                )
+
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(p)
+
+        return out
+
+    def _enforce_doi_backed_citing_papers(self, papers: List[Paper]) -> List[Paper]:
+        """
+        Ensure each citing paper has a DOI if possible; drop those without DOI after bounded upgrade attempts.
+        """
+        out: List[Paper] = []
+        seen_dois: Set[str] = set()
+        max_upgrade_attempts = 50
+        attempts = 0
+
+        for p in papers:
+            doi = normalize_doi(p.doi)
+            if doi:
+                if doi not in seen_dois:
+                    seen_dois.add(doi)
+                    out.append(p)
+                continue
+
+            if attempts >= max_upgrade_attempts:
+                continue
+            attempts += 1
+
+            title = (p.title or "").strip()
+            if not title:
+                continue
+
+            resolved = self._search_service.doi_resolver.resolve_doi_from_title(
+                title, expected_authors=p.authors or None
+            )
+            if not resolved:
+                continue
+
+            canonical = self._search_service._fetch_canonical_by_doi(resolved)
+            if not canonical:
+                continue
+
+            canonical_doi = normalize_doi(canonical.doi)
+            if not canonical_doi or canonical_doi in seen_dois:
+                continue
+
+            seen_dois.add(canonical_doi)
+            out.append(canonical)
+
+        return out
