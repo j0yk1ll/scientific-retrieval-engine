@@ -5,12 +5,18 @@ import re
 from typing import List, Optional, Protocol, Sequence
 
 from retrieval.core.models import Paper
+from retrieval.providers.clients.base import ClientError
+from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallClient
 
 
 @dataclass(frozen=True)
 class FullTextCandidate:
     pdf_url: str
     source: str
+    license: Optional[str] = None
+    version: Optional[str] = None
+    host_type: Optional[str] = None
+    is_best: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -62,9 +68,76 @@ class ArxivDeterministicResolver:
         return []
 
 
+class UnpaywallResolver:
+    name_best = "unpaywall_best"
+    name_location = "unpaywall_location"
+
+    def __init__(self, unpaywall_client: UnpaywallClient) -> None:
+        self.unpaywall_client = unpaywall_client
+
+    def resolve(self, paper: Paper) -> List[FullTextCandidate]:
+        doi = (paper.doi or "").strip()
+        if not doi:
+            return []
+        try:
+            record = self.unpaywall_client.get_record(doi)
+        except ClientError:
+            return []
+        if not record:
+            return []
+
+        locations = record.oa_locations
+        if record.best_oa_location:
+            return self._candidates_with_best(record.best_oa_location, locations)
+        if not locations:
+            return []
+        return self._candidates_with_best(locations[0], locations[1:])
+
+    def _candidates_with_best(
+        self,
+        best_location: OpenAccessLocation,
+        locations: Sequence[OpenAccessLocation],
+    ) -> List[FullTextCandidate]:
+        candidates: List[FullTextCandidate] = []
+        best_candidate = self._to_candidate(best_location, self.name_best)
+        if best_candidate:
+            candidates.append(best_candidate)
+        for location in locations:
+            if location == best_location:
+                continue
+            candidate = self._to_candidate(location, self.name_location)
+            if candidate:
+                candidates.append(candidate)
+        return candidates
+
+    def _to_candidate(
+        self, location: OpenAccessLocation, source: str
+    ) -> Optional[FullTextCandidate]:
+        pdf_url = location.pdf_url
+        if not pdf_url:
+            return None
+        return FullTextCandidate(
+            pdf_url=pdf_url,
+            source=source,
+            license=location.license,
+            version=location.version,
+            host_type=location.host_type,
+            is_best=location.is_best,
+        )
+
+
 class FullTextResolverService:
-    def __init__(self, resolvers: Optional[Sequence[FullTextResolver]] = None) -> None:
-        self.resolvers = list(resolvers) if resolvers is not None else self._default_resolvers()
+    def __init__(
+        self,
+        resolvers: Optional[Sequence[FullTextResolver]] = None,
+        *,
+        unpaywall_client: Optional[UnpaywallClient] = None,
+    ) -> None:
+        self.resolvers = (
+            list(resolvers)
+            if resolvers is not None
+            else self._default_resolvers(unpaywall_client=unpaywall_client)
+        )
 
     def resolve(self, paper: Paper) -> FullTextResolution:
         candidates: List[FullTextCandidate] = []
@@ -75,7 +148,20 @@ class FullTextResolverService:
 
     @staticmethod
     def _order_candidates(candidates: List[FullTextCandidate]) -> List[FullTextCandidate]:
-        ordered = sorted(candidates, key=lambda candidate: (candidate.source, candidate.pdf_url))
+        source_rank = {
+            UnpaywallResolver.name_best: 0,
+            UnpaywallResolver.name_location: 1,
+            UpstreamFieldsResolver.name: 2,
+            ArxivDeterministicResolver.name: 3,
+        }
+        ordered = sorted(
+            candidates,
+            key=lambda candidate: (
+                source_rank.get(candidate.source, len(source_rank)),
+                candidate.source,
+                candidate.pdf_url,
+            ),
+        )
         seen: set[tuple[str, str]] = set()
         deduped: List[FullTextCandidate] = []
         for candidate in ordered:
@@ -87,5 +173,13 @@ class FullTextResolverService:
         return deduped
 
     @staticmethod
-    def _default_resolvers() -> List[FullTextResolver]:
-        return [UpstreamFieldsResolver(), ArxivDeterministicResolver()]
+    def _default_resolvers(
+        *, unpaywall_client: Optional[UnpaywallClient]
+    ) -> List[FullTextResolver]:
+        resolvers: List[FullTextResolver] = [
+            UpstreamFieldsResolver(),
+            ArxivDeterministicResolver(),
+        ]
+        if unpaywall_client is not None:
+            resolvers.insert(0, UnpaywallResolver(unpaywall_client))
+        return resolvers
