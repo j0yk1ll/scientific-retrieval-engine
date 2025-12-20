@@ -24,6 +24,7 @@ class Paper:
     primary_source: Optional[str] = None
     url: Optional[str] = None
     pdf_url: Optional[str] = None
+    resolved_pdf_url: Optional[str] = None
     is_oa: Optional[bool] = None
     authors: List[str] = field(default_factory=list)
     provenance: Optional["PaperProvenance"] = None
