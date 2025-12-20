@@ -151,12 +151,25 @@ class SemanticScholarClient(BaseHttpClient):
         self,
         paper_id: str,
         *,
-        fields: str = "paperId,externalIds,doi",
         limit: int = 500,
         page_size: int = 100,
     ) -> List[SemanticScholarPaper]:
         if not paper_id:
             return []
+
+        fields = ",".join(
+            [
+                "citingPaper.paperId",
+                "citingPaper.externalIds",
+                "citingPaper.title",
+                "citingPaper.abstract",
+                "citingPaper.year",
+                "citingPaper.venue",
+                "citingPaper.authors.name",
+                "citingPaper.url",
+                "citingPaper.openAccessPdf",
+            ]
+        )
 
         results: List[SemanticScholarPaper] = []
         offset = 0
