@@ -138,13 +138,11 @@ class RetrievalClient:
         else:
             self._unpaywall_client = None
 
-        self._paper_enrichment_service = (
-            PaperEnrichmentService(unpaywall_client=self._unpaywall_client)
-            if self._unpaywall_client
-            else None
-        )
         self._full_text_resolver = FullTextResolverService(
             unpaywall_client=self._unpaywall_client
+        )
+        self._paper_enrichment_service = PaperEnrichmentService(
+            resolver=self._full_text_resolver
         )
 
         # Optional: only useful if a GROBID service is running.
