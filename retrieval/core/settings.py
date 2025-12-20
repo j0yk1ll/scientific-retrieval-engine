@@ -14,7 +14,6 @@ class RetrievalSettings:
 
     timeout: float = 10.0
     user_agent: str = "scientific-retrieval-engine"
-    enable_unpaywall: bool = False
     unpaywall_email: Optional[str] = None
     openalex_base_url: Optional[str] = None
     crossref_base_url: Optional[str] = None
@@ -23,17 +22,13 @@ class RetrievalSettings:
     semanticscholar_api_key: Optional[str] = None
     opencitations_base_url: Optional[str] = None
     unpaywall_base_url: Optional[str] = None
-    # OpenCitations coverage is incomplete; enable high-quality fallbacks by default.
     enable_semanticscholar_citation_fallback: bool = True
     enable_openalex_citation_fallback: bool = True
+    enable_unpaywall: bool = True
     # Practical caps to avoid unbounded citation crawls.
     citation_limit: int = 500
     openalex_citation_max_pages: int = 5
     session: Optional[requests.Session] = field(default=None, repr=False)
-
-    def __post_init__(self) -> None:
-        if self.enable_unpaywall and not self.unpaywall_email:
-            raise ValueError("Unpaywall email is required when enable_unpaywall is True")
 
     def build_session(self) -> requests.Session:
         """Return a configured :class:`requests.Session` using the settings."""
