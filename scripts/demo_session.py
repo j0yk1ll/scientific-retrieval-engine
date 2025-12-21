@@ -76,6 +76,44 @@ def short_print_paper(paper: Optional[Any], label: str) -> None:
     print()
 
 
+def _format_author(name: str) -> str:
+    """Convert various author name formats into 'Last, I. I.' style.
+
+    Handles names like 'First Middle Last' and 'Last, First Middle'.
+    """
+    if not name or not name.strip():
+        return ""
+    name = name.strip()
+    # If already in 'Last, First' form
+    if "," in name:
+        last, rest = [p.strip() for p in name.split(",", 1)]
+        parts = rest.split()
+        initials = " ".join((p[0].upper() + ".") for p in parts if p)
+        return f"{last}, {initials}" if initials else last
+
+    parts = name.split()
+    if len(parts) == 1:
+        return parts[0]
+    last = parts[-1]
+    given = parts[:-1]
+    initials = " ".join((p[0].upper() + ".") for p in given if p)
+    return f"{last}, {initials}" if initials else last
+
+
+def _format_authors(authors: list[str]) -> str:
+    """Join formatted authors with commas and an Oxford comma + ampersand before last."""
+    if not authors:
+        return "<no authors>"
+    formatted = [_format_author(a) for a in authors if a]
+    if not formatted:
+        return "<no authors>"
+    if len(formatted) == 1:
+        return formatted[0]
+    if len(formatted) == 2:
+        return f"{formatted[0]} & {formatted[1]}"
+    return ", ".join(formatted[:-1]) + f", & {formatted[-1]}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Demo the retrieval package functions.")
     parser.add_argument("--query", default="graph neural networks", help="Free-text query for `search_papers` and `gather_evidence`")
@@ -93,14 +131,18 @@ def main() -> None:
     # search_paper_by_doi
     try:
         doi_res = search_paper_by_doi(args.doi)
-        short_print_paper(doi_res, f"search_paper_by_doi('{args.doi}')")
+        print(f"--- search_paper_by_doi('{args.doi}'): {1 if doi_res else 0} result ---")
+        pprint.pprint(doi_res, width=120)
+        print()
     except Exception as e:  # pragma: no cover - demo runner
         print("search_paper_by_doi error:", e)
 
     # search_paper_by_title
     try:
         title_res = search_paper_by_title(args.title)
-        short_print_paper(title_res, f"search_paper_by_title('{args.title}')")
+        print(f"--- search_paper_by_title('{args.title}'): {1 if title_res else 0} result ---")
+        pprint.pprint(title_res, width=120)
+        print()
     except Exception as e:  # pragma: no cover - demo runner
         print("search_paper_by_title error:", e)
 
@@ -123,9 +165,14 @@ def main() -> None:
             for i, c in enumerate(citations[:5], start=1):
                 title = getattr(c, "title", "<no title>")
                 doi = getattr(c, "doi", "<no doi>")
-                year = getattr(c, "year", "<no year>")
-                authors = ", ".join(getattr(c, "authors", []) or [])
-                print(f"{i}. {title} ({year}) — DOI: {doi} — Authors: {authors or '<no authors>'}")
+                year = getattr(c, "year", None)
+                venue = getattr(c, "venue", None) or getattr(c, "source", None) or ""
+                authors = getattr(c, "authors", []) or []
+                auth_str = _format_authors(authors)
+                year_part = f" ({year})" if year else ""
+                venue_part = f" {venue}," if venue else ""
+                # Compose citation similar to: Authors (Year). Title. Venue, volume, page. DOI: ...
+                print(f"{i}. {auth_str}{year_part}. {title}.{venue_part} DOI: {doi}")
         print()
     except Exception as e:  # pragma: no cover - demo runner
         print("search_citations error:", e)
