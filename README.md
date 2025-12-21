@@ -1,13 +1,13 @@
 # scientific-retrieval-engine
 
-A Retrieval Engine for Autonomous Deep Research
+A Literature Retrieval Engine for Autonomous Deep Research
 
 ## Overview
 
 A lightweight Python library providing session-scoped paper discovery and citation lookups using trusted metadata services:
 
 - **OpenAlex** and **Semantic Scholar** for discovery metadata
-- **Unpaywall** (optional) for locating full-text sources
+- **Unpaywall** for locating full-text sources
 - **OpenCitations** for citation lookups
 
 All results are stored **only in memory for the current Python session**. There is no filesystem or database persistence; when the session ends or you call the clear helper, the internal index is emptied.
