@@ -11,7 +11,7 @@ import argparse
 import pprint
 from typing import Any, Optional
 
-from retrieval import (
+from literature_retrieval_engine import (
     search_papers,
     search_paper_by_doi,
     search_paper_by_title,

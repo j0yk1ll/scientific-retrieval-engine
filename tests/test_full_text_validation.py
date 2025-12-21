@@ -1,6 +1,6 @@
 import requests
 
-from retrieval.services.full_text_validation import validate_pdf_url
+from literature_retrieval_engine.services.full_text_validation import validate_pdf_url
 
 
 def _response(status_code: int, *, content_type: str | None = None, body: bytes = b""):

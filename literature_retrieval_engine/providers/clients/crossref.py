@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from retrieval.core.identifiers import normalize_doi
-from retrieval.providers.clients.base import BaseHttpClient, NotFoundError
+from literature_retrieval_engine.core.identifiers import normalize_doi
+from literature_retrieval_engine.providers.clients.base import BaseHttpClient, NotFoundError
 
 
 @dataclass

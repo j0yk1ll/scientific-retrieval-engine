@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from retrieval.core.identifiers import normalize_doi
-from retrieval.core.models import Paper
-from retrieval.providers.clients.crossref import CrossrefWork
-from retrieval.providers.clients.datacite import DataCiteWork
-from retrieval.providers.clients.openalex import OpenAlexWork
-from retrieval.providers.clients.semanticscholar import SemanticScholarPaper
+from literature_retrieval_engine.core.identifiers import normalize_doi
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.providers.clients.crossref import CrossrefWork
+from literature_retrieval_engine.providers.clients.datacite import DataCiteWork
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexWork
+from literature_retrieval_engine.providers.clients.semanticscholar import SemanticScholarPaper
 
 
 def crossref_work_to_paper(work: CrossrefWork) -> Paper:

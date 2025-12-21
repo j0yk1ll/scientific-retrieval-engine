@@ -1,5 +1,5 @@
-from retrieval.providers.clients.datacite import DataCiteWork
-from retrieval.services.search_service import PaperSearchService
+from literature_retrieval_engine.providers.clients.datacite import DataCiteWork
+from literature_retrieval_engine.services.search_service import PaperSearchService
 
 
 class StubOpenAlexClient:

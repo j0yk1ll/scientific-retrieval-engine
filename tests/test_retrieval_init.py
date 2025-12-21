@@ -33,7 +33,7 @@ class DummyClient:
 def cleanup_retrieval_module():
     yield
     sys.modules.pop("retrieval", None)
-    sys.modules.pop("retrieval.api", None)
+    sys.modules.pop("literature_retrieval_engine.api", None)
 
 
 def test_import_is_lazy(monkeypatch):
@@ -44,9 +44,9 @@ def test_import_is_lazy(monkeypatch):
         register_calls.append(func)
 
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(Session=object))
-    dummy_api = types.ModuleType("retrieval.api")
+    dummy_api = types.ModuleType("literature_retrieval_engine.api")
     dummy_api.RetrievalClient = lambda: DummyClient(created_instances, register_calls)
-    sys.modules["retrieval.api"] = dummy_api
+    sys.modules["literature_retrieval_engine.api"] = dummy_api
     monkeypatch.setattr("atexit.register", register_mock)
 
     sys.modules.pop("retrieval", None)

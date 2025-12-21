@@ -1,7 +1,7 @@
-from retrieval.core.models import Paper
-from retrieval.providers.clients.openalex import OpenAlexWork
-from retrieval.providers.clients.semanticscholar import SemanticScholarPaper
-from retrieval.services.search_service import PaperSearchService
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexWork
+from literature_retrieval_engine.providers.clients.semanticscholar import SemanticScholarPaper
+from literature_retrieval_engine.services.search_service import PaperSearchService
 
 
 class StubOpenAlexClient:

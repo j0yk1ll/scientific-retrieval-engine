@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:  # pragma: no cover
-    from retrieval.services import PaperChunk
+    from literature_retrieval_engine.services import PaperChunk
 
 
 @dataclass
@@ -22,7 +22,7 @@ class Chunk:
     def from_paper_chunk(
         cls, paper_chunk: "PaperChunk", *, title: Optional[str] = None
     ) -> "Chunk":
-        """Adapt a :class:`~retrieval.services.PaperChunk` into a retrievable chunk.
+        """Adapt a :class:`~literature_retrieval_engine.services.PaperChunk` into a retrievable chunk.
 
         The chunk metadata uses chunk-stream offsets rather than raw TEI character
         positions to avoid implying direct mapping back to the source XML.

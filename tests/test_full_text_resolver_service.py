@@ -1,6 +1,6 @@
-from retrieval.core.models import Paper
-from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
-from retrieval.services.full_text_resolver_service import (
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
+from literature_retrieval_engine.services.full_text_resolver_service import (
     ArxivDeterministicResolver,
     FullTextResolverService,
     UnpaywallResolver,

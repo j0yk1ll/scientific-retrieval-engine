@@ -4,22 +4,22 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from retrieval.core.identifiers import normalize_doi, normalize_title
-from retrieval.core.models import Paper
-from retrieval.hybrid_search.bm25_index import BM25Index
-from retrieval.hybrid_search.models import Chunk
-from retrieval.providers.adapters import (
+from literature_retrieval_engine.core.identifiers import normalize_doi, normalize_title
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.hybrid_search.bm25_index import BM25Index
+from literature_retrieval_engine.hybrid_search.models import Chunk
+from literature_retrieval_engine.providers.adapters import (
     crossref_work_to_paper,
     datacite_work_to_paper,
     openalex_work_to_paper,
     semanticscholar_paper_to_paper,
 )
-from retrieval.providers.clients.base import ClientError
-from retrieval.providers.clients.crossref import CrossrefClient
-from retrieval.providers.clients.datacite import DataCiteClient
-from retrieval.providers.clients.openalex import OpenAlexClient
-from retrieval.providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
-from retrieval.services.paper_merge_service import PaperMergeService
+from literature_retrieval_engine.providers.clients.base import ClientError
+from literature_retrieval_engine.providers.clients.crossref import CrossrefClient
+from literature_retrieval_engine.providers.clients.datacite import DataCiteClient
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexClient
+from literature_retrieval_engine.providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
+from literature_retrieval_engine.services.paper_merge_service import PaperMergeService
 
 from .doi_resolver_service import DoiResolverService
 

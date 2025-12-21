@@ -4,14 +4,14 @@ from typing import Sequence
 
 import pytest
 
-from retrieval.hybrid_search import (
+from literature_retrieval_engine.hybrid_search import (
     BM25Index,
     Chunk,
     FaissVectorIndex,
     HybridRetrievalConfig,
     HybridRetriever,
 )
-from retrieval.services import PaperChunk
+from literature_retrieval_engine.services import PaperChunk
 
 
 class StaticEmbedder:

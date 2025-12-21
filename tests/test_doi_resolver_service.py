@@ -1,6 +1,6 @@
-from retrieval.providers.clients.crossref import CrossrefWork
-from retrieval.providers.clients.datacite import DataCiteWork
-from retrieval.services.doi_resolver_service import DoiResolverService
+from literature_retrieval_engine.providers.clients.crossref import CrossrefWork
+from literature_retrieval_engine.providers.clients.datacite import DataCiteWork
+from literature_retrieval_engine.services.doi_resolver_service import DoiResolverService
 
 
 class StubCrossrefService:

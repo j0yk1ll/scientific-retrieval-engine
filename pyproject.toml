@@ -3,10 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "retrieval-system"
+name = "literature-retrieval-engine"
 version = "0.1.0"
-description = "Local knowledge retrieval system scaffold"
-authors = [{ name = "Scientific Retrieval Engine Team" }]
+description = "A Literature Retrieval Engine for Autonomous Deep Research"
+authors = [{ name = "j0yk1ll" }]
 requires-python = ">=3.11,<3.12"
 readme = "README.md"
 

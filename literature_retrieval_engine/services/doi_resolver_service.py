@@ -3,7 +3,7 @@
 Example
 -------
 ```python
-from retrieval.services.doi_resolver_service import DoiResolverService
+from literature_retrieval_engine.services.doi_resolver_service import DoiResolverService
 
 resolver = DoiResolverService()
 doi = resolver.resolve_doi_from_title(
@@ -17,10 +17,10 @@ from __future__ import annotations
 import logging
 from typing import List, Optional, Set
 
-from retrieval.core.identifiers import normalize_title
-from retrieval.core.matching import jaccard, title_tokens
-from retrieval.providers.clients.crossref import CrossrefClient
-from retrieval.providers.clients.datacite import DataCiteClient
+from literature_retrieval_engine.core.identifiers import normalize_title
+from literature_retrieval_engine.core.matching import jaccard, title_tokens
+from literature_retrieval_engine.providers.clients.crossref import CrossrefClient
+from literature_retrieval_engine.providers.clients.datacite import DataCiteClient
 
 logger = logging.getLogger(__name__)
 

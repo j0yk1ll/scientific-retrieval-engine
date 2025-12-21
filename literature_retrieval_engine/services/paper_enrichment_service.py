@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from retrieval.core.models import Paper
-from retrieval.services.full_text_resolver_service import FullTextResolverService
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.services.full_text_resolver_service import FullTextResolverService
 
 
 class PaperEnrichmentService:

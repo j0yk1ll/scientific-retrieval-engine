@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, Tuple
 
-from retrieval.core.identifiers import normalize_doi
-from retrieval.core.models import Paper
+from literature_retrieval_engine.core.identifiers import normalize_doi
+from literature_retrieval_engine.core.models import Paper
 
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
 

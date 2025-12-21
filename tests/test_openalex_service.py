@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import requests
 
-from retrieval.providers.clients.openalex import OpenAlexClient
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexClient
 
 
 class _CapturingSession:
@@ -85,7 +85,7 @@ def test_get_work_by_external_id_encodes_path_and_logs_non_200(caplog):
     session = _CapturingSession([_make_response(403)])
     client = OpenAlexClient(session=session)
 
-    caplog.set_level(logging.DEBUG, logger="retrieval.providers.clients.openalex")
+    caplog.set_level(logging.DEBUG, logger="literature_retrieval_engine.providers.clients.openalex")
     work = client.get_work_by_external_id(doi_url)
 
     assert work is None

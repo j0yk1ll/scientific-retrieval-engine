@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-import retrieval.providers.clients.base as base
-from retrieval.providers.clients.base import (
+import literature_retrieval_engine.providers.clients.base as base
+from literature_retrieval_engine.providers.clients.base import (
     BaseHttpClient,
     ForbiddenError,
     NotFoundError,
@@ -74,7 +74,7 @@ def test_retry_wait_respects_retry_after_header():
     response = _make_response(429, headers={"Retry-After": "5"})
     retry_state = _RetryState(1, _Outcome(RetryableResponseError(response)))
 
-    with patch("retrieval.providers.clients.base.random.uniform") as uniform_mock:
+    with patch("literature_retrieval_engine.providers.clients.base.random.uniform") as uniform_mock:
         wait_seconds = base._retry_wait(retry_state)
 
     assert wait_seconds == 5
@@ -89,7 +89,7 @@ def test_retry_wait_applies_jitter_to_base_backoff():
     expected_min = fallback * 0.5
     expected_max = min(fallback * 1.5, base._BASE_WAIT_MAX)
 
-    with patch("retrieval.providers.clients.base.random.uniform", return_value=expected_max) as uniform_mock:
+    with patch("literature_retrieval_engine.providers.clients.base.random.uniform", return_value=expected_max) as uniform_mock:
         wait_seconds = base._retry_wait(retry_state)
 
     uniform_mock.assert_called_once_with(expected_min, expected_max)
@@ -104,7 +104,7 @@ def test_retry_wait_prefers_rate_limit_backoff_without_retry_after():
     expected_min = fallback * 0.5
     expected_max = min(fallback * 1.5, base._RATE_LIMIT_WAIT_MAX)
 
-    with patch("retrieval.providers.clients.base.random.uniform", return_value=expected_min) as uniform_mock:
+    with patch("literature_retrieval_engine.providers.clients.base.random.uniform", return_value=expected_min) as uniform_mock:
         wait_seconds = base._retry_wait(retry_state)
 
     uniform_mock.assert_called_once_with(expected_min, expected_max)

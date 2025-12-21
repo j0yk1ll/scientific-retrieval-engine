@@ -3,9 +3,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from retrieval.core.models import Paper
-from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
-from retrieval.services.paper_enrichment_service import PaperEnrichmentService
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
+from literature_retrieval_engine.services.paper_enrichment_service import PaperEnrichmentService
 
 
 class FakeUnpaywallClient:

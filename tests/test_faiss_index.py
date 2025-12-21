@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from retrieval.hybrid_search.faiss_index import FaissVectorIndex
-from retrieval.hybrid_search.models import Chunk
+from literature_retrieval_engine.hybrid_search.faiss_index import FaissVectorIndex
+from literature_retrieval_engine.hybrid_search.models import Chunk
 
 
 class CountingEmbedder:
@@ -62,7 +62,7 @@ def _make_dummy_faiss():
 def test_faiss_index_batches_embeddings(monkeypatch):
     embedder = CountingEmbedder()
     dummy_faiss = _make_dummy_faiss()
-    monkeypatch.setattr("retrieval.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
+    monkeypatch.setattr("literature_retrieval_engine.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
 
     index = FaissVectorIndex(embedder, normalize=False)
     chunks = [
@@ -86,7 +86,7 @@ def test_faiss_index_batches_embeddings(monkeypatch):
 def test_faiss_index_reports_normalization_conflict(monkeypatch):
     embedder = CountingEmbedder()
     dummy_faiss = _make_dummy_faiss()
-    monkeypatch.setattr("retrieval.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
+    monkeypatch.setattr("literature_retrieval_engine.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
 
     index = FaissVectorIndex(embedder, normalize=True)
     index.add(Chunk(chunk_id="c1", paper_id="p1", text="first"))
@@ -102,7 +102,7 @@ def test_faiss_index_reports_normalization_conflict(monkeypatch):
 def test_faiss_index_records_metadata(monkeypatch):
     embedder = CountingEmbedder()
     dummy_faiss = _make_dummy_faiss()
-    monkeypatch.setattr("retrieval.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
+    monkeypatch.setattr("literature_retrieval_engine.hybrid_search.faiss_index._load_faiss", lambda: dummy_faiss)
 
     index = FaissVectorIndex(embedder, normalize=True)
     index.add(Chunk(chunk_id="c1", paper_id="p1", text="first"))

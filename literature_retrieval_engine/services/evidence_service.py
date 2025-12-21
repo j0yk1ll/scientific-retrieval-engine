@@ -6,10 +6,10 @@ from typing import List, Optional
 
 import requests
 
-from retrieval.core.models import EvidenceChunk, Paper
-from retrieval.providers.clients.grobid import GrobidClient
-from retrieval.services.full_text_resolver_service import FullTextResolverService
-from retrieval.services.paper_chunker_service import PaperChunkerService
+from literature_retrieval_engine.core.models import EvidenceChunk, Paper
+from literature_retrieval_engine.providers.clients.grobid import GrobidClient
+from literature_retrieval_engine.services.full_text_resolver_service import FullTextResolverService
+from literature_retrieval_engine.services.paper_chunker_service import PaperChunkerService
 
 logger = logging.getLogger(__name__)
 

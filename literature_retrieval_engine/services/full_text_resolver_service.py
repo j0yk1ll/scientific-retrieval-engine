@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional, Protocol, Sequence
 
-from retrieval.core.models import Paper
-from retrieval.providers.clients.base import ClientError
-from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallClient
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.providers.clients.base import ClientError
+from literature_retrieval_engine.providers.clients.unpaywall import OpenAccessLocation, UnpaywallClient
 
 
 @dataclass(frozen=True)

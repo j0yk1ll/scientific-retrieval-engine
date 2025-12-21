@@ -1,4 +1,4 @@
-from retrieval.providers.clients.datacite import DataCiteClient
+from literature_retrieval_engine.providers.clients.datacite import DataCiteClient
 
 
 def test_datacite_client_exact_then_fallback(monkeypatch):

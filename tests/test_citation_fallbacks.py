@@ -1,8 +1,8 @@
-from retrieval.api import RetrievalClient
-from retrieval.core.models import Paper
-from retrieval.core.settings import RetrievalSettings
-from retrieval.providers.clients.openalex import OpenAlexWork
-from retrieval.providers.clients.semanticscholar import SemanticScholarPaper
+from literature_retrieval_engine.api import RetrievalClient
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.core.settings import RetrievalSettings
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexWork
+from literature_retrieval_engine.providers.clients.semanticscholar import SemanticScholarPaper
 
 
 class DummyOpenAlexClientNoResults:

@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import quote
 
-from retrieval.core.identifiers import normalize_doi
-from retrieval.providers.clients.base import (
+from literature_retrieval_engine.core.identifiers import normalize_doi
+from literature_retrieval_engine.providers.clients.base import (
     BaseHttpClient,
     ForbiddenError,
     NotFoundError,

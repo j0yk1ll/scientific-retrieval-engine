@@ -1,6 +1,6 @@
 import responses
 
-from retrieval.providers.clients import GrobidClient
+from literature_retrieval_engine.providers.clients import GrobidClient
 
 
 @responses.activate

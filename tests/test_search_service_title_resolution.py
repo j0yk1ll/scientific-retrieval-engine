@@ -1,6 +1,6 @@
-from retrieval.providers.clients.crossref import CrossrefWork
-from retrieval.providers.clients.openalex import OpenAlexWork
-from retrieval.services.search_service import PaperSearchService
+from literature_retrieval_engine.providers.clients.crossref import CrossrefWork
+from literature_retrieval_engine.providers.clients.openalex import OpenAlexWork
+from literature_retrieval_engine.services.search_service import PaperSearchService
 
 
 class StubOpenAlexClient:

@@ -35,7 +35,7 @@ Each function leverages dedicated service clients (OpenAlex, Semantic Scholar, U
 
 DOI inputs are resolved across Crossref, DataCite, OpenAlex, and Semantic Scholar.
 Results are merged to prefer canonical identifiers while preserving the originating
-source on each :class:`retrieval.core.models.Paper` instance via ``paper.source``.
+source on each :class:`literature_retrieval_engine.core.models.Paper` instance via ``paper.source``.
 
 ```python
 from retrieval import search_paper_by_doi
@@ -63,8 +63,8 @@ print(papers[0].doi)  # May be upgraded via Crossref/DataCite
 GROBID TEI output can be chunked and indexed for lexical + vector retrieval:
 
 ```python
-from retrieval.services import PaperChunkerService
-from retrieval.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+from literature_retrieval_engine.services import PaperChunkerService
+from literature_retrieval_engine.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 tei_xml = "<TEI>...</TEI>"  # GROBID response
 chunks = PaperChunkerService("demo-paper", tei_xml).chunk(max_tokens=400)
@@ -86,7 +86,7 @@ results = retriever.search("introduction")
 Combine lexical and vector search across any chunk collection:
 
 ```python
-from retrieval.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
+from literature_retrieval_engine.hybrid_search import BM25Index, FaissVectorIndex, HybridRetriever, Chunk
 
 chunks = [
     Chunk(text="Transformer models excel at sequence tasks"),
@@ -111,8 +111,8 @@ for hit in retriever.search("sequence modeling"):
 Unpaywall is opt-in and requires a contact email. Enable it via settings (or environment variables loaded with ``load_dotenv_from_root``):
 
 ```python
-from retrieval.api import RetrievalClient
-from retrieval.core.settings import RetrievalSettings
+from literature_retrieval_engine.api import RetrievalClient
+from literature_retrieval_engine.core.settings import RetrievalSettings
 
 settings = RetrievalSettings(enable_unpaywall=True, unpaywall_email="you@example.com")
 client = RetrievalClient(settings=settings)

@@ -1,5 +1,5 @@
-from retrieval.core.models import Paper
-from retrieval.services.paper_merge_service import PaperMergeService
+from literature_retrieval_engine.core.models import Paper
+from literature_retrieval_engine.services.paper_merge_service import PaperMergeService
 
 
 def test_merge_prefers_doi_and_tracks_field_sources() -> None:

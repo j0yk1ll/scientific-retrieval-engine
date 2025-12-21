@@ -1,7 +1,7 @@
 """High-level retrieval API constrained to DOI and title inputs.
 
 This module exposes the :class:`RetrievalClient` facade and the functional
-helpers defined in :mod:`retrieval.__init__`. Inputs are limited to DOIs and
+helpers defined in :mod:`literature_retrieval_engine.__init__`. Inputs are limited to DOIs and
 title-like queries; the client intentionally avoids arbitrary URL lookups or
 other identifier types so downstream services remain focused on curated
 bibliographic metadata.
@@ -9,7 +9,7 @@ bibliographic metadata.
 Example: lookup by DOI
 ----------------------
 ```python
-from retrieval.api import RetrievalClient
+from literature_retrieval_engine.api import RetrievalClient
 
 client = RetrievalClient()
 paper = client.search_paper_by_doi("10.5555/example.doi")
