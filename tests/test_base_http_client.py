@@ -10,9 +10,9 @@ from retrieval.providers.clients.base import (
     BaseHttpClient,
     ForbiddenError,
     NotFoundError,
-    RetryableResponseError,
     RateLimitedError,
     RequestRejectedError,
+    RetryableResponseError,
     UnauthorizedError,
     UpstreamError,
 )

@@ -6,14 +6,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import requests
+
+from retrieval.core.identifiers import normalize_doi
 from retrieval.providers.clients.base import (
     BaseHttpClient,
     NotFoundError,
     RateLimitedError,
     RequestRejectedError,
 )
-from retrieval.core.identifiers import normalize_doi
-
 
 DEFAULT_FIELDS = "paperId,externalIds,title,abstract,year,venue,authors.name,url,openAccessPdf"
 

@@ -4,7 +4,6 @@ from typing import Sequence
 
 import pytest
 
-from retrieval.services import PaperChunk
 from retrieval.hybrid_search import (
     BM25Index,
     Chunk,
@@ -12,6 +11,7 @@ from retrieval.hybrid_search import (
     HybridRetrievalConfig,
     HybridRetriever,
 )
+from retrieval.services import PaperChunk
 
 
 class StaticEmbedder:

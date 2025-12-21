@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Sequence, Tuple
 from retrieval.core.identifiers import normalize_doi
 from retrieval.core.models import Paper
 
-
 DEFAULT_SOURCE_PRIORITY = ("crossref", "datacite", "openalex", "semanticscholar")
 
 PrioritySpec = Sequence[str | Sequence[str]]

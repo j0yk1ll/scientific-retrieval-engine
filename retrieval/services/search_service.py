@@ -4,7 +4,8 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from retrieval.providers.clients.base import ClientError
+from retrieval.core.identifiers import normalize_doi, normalize_title
+from retrieval.core.models import Paper
 from retrieval.hybrid_search.bm25_index import BM25Index
 from retrieval.hybrid_search.models import Chunk
 from retrieval.providers.adapters import (
@@ -13,15 +14,14 @@ from retrieval.providers.adapters import (
     openalex_work_to_paper,
     semanticscholar_paper_to_paper,
 )
+from retrieval.providers.clients.base import ClientError
 from retrieval.providers.clients.crossref import CrossrefClient
 from retrieval.providers.clients.datacite import DataCiteClient
 from retrieval.providers.clients.openalex import OpenAlexClient
 from retrieval.providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
-from retrieval.core.identifiers import normalize_doi, normalize_title
-from retrieval.core.models import Paper
 from retrieval.services.paper_merge_service import PaperMergeService
-from .doi_resolver_service import DoiResolverService
 
+from .doi_resolver_service import DoiResolverService
 
 logger = logging.getLogger(__name__)
 

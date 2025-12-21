@@ -36,9 +36,9 @@ from .providers.clients.grobid import GrobidClient
 from .providers.clients.openalex import OpenAlexClient
 from .providers.clients.semanticscholar import DEFAULT_FIELDS, SemanticScholarClient
 from .providers.clients.unpaywall import UnpaywallClient
-from .services.full_text_resolver_service import FullTextResolverService
 from .services.doi_resolver_service import DoiResolverService
 from .services.evidence_service import EvidenceConfig, EvidenceService
+from .services.full_text_resolver_service import FullTextResolverService
 from .services.paper_enrichment_service import PaperEnrichmentService
 from .services.paper_merge_service import PaperMergeService
 from .services.search_service import PaperSearchService

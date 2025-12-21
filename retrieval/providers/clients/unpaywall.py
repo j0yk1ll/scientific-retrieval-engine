@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from retrieval.providers.clients.base import BaseHttpClient, ClientError, NotFoundError
 from retrieval.core.identifiers import normalize_doi
+from retrieval.providers.clients.base import BaseHttpClient, ClientError, NotFoundError
 
 
 @dataclass

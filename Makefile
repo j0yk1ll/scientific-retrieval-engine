@@ -53,7 +53,7 @@ lint-fix:
 	uv run ruff check --fix retrieval/ tests/
 
 typecheck:
-	uv run mypy retrieval/
+	uv run python -m mypy retrieval/
 
 # Installation
 install:

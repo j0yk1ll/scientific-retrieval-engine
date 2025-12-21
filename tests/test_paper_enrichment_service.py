@@ -1,10 +1,10 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
 from retrieval.core.models import Paper
+from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallRecord
 from retrieval.services.paper_enrichment_service import PaperEnrichmentService
 
 

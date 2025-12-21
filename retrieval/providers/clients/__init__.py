@@ -16,7 +16,12 @@ from .grobid import GrobidClient
 from .openalex import OpenAlexClient, OpenAlexWork
 from .semanticscholar import DEFAULT_FIELDS as SEMANTICSCHOLAR_DEFAULT_FIELDS
 from .semanticscholar import SemanticScholarClient, SemanticScholarPaper
-from .unpaywall import OpenAccessLocation, UnpaywallClient, UnpaywallRecord, UnpaywallFullTextCandidate
+from .unpaywall import (
+    OpenAccessLocation,
+    UnpaywallClient,
+    UnpaywallFullTextCandidate,
+    UnpaywallRecord,
+)
 
 __all__ = [
     "BaseHttpClient",

@@ -7,12 +7,14 @@ from .adapters import (
     semanticscholar_paper_to_paper,
 )
 from .clients import (
+    SEMANTICSCHOLAR_DEFAULT_FIELDS,
     BaseHttpClient,
     ClientError,
     CrossrefClient,
     CrossrefWork,
     DataCiteClient,
     DataCiteWork,
+    ForbiddenError,
     GrobidClient,
     NotFoundError,
     OpenAccessLocation,
@@ -20,14 +22,12 @@ from .clients import (
     OpenAlexWork,
     RateLimitedError,
     RequestRejectedError,
-    SEMANTICSCHOLAR_DEFAULT_FIELDS,
     SemanticScholarClient,
     SemanticScholarPaper,
     UnauthorizedError,
     UnpaywallClient,
     UnpaywallFullTextCandidate,
     UnpaywallRecord,
-    ForbiddenError,
     UpstreamError,
 )
 

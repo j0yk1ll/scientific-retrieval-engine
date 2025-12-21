@@ -3,8 +3,8 @@ from retrieval.providers.clients.unpaywall import OpenAccessLocation, UnpaywallR
 from retrieval.services.full_text_resolver_service import (
     ArxivDeterministicResolver,
     FullTextResolverService,
-    UpstreamFieldsResolver,
     UnpaywallResolver,
+    UpstreamFieldsResolver,
 )
 
 

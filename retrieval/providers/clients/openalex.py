@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import quote
 
+from retrieval.core.identifiers import normalize_doi
 from retrieval.providers.clients.base import (
     BaseHttpClient,
     ForbiddenError,
@@ -16,7 +17,6 @@ from retrieval.providers.clients.base import (
     UnauthorizedError,
     UpstreamError,
 )
-from retrieval.core.identifiers import normalize_doi
 
 logger = logging.getLogger(__name__)
 

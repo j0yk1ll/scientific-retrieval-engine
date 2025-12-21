@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 import atexit
+from typing import List, Optional
 
 from .api import RetrievalClient
 from .core.models import EvidenceChunk, Paper

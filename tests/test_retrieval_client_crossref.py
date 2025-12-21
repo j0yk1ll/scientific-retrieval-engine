@@ -1,10 +1,10 @@
 import requests
 
 from retrieval.api import RetrievalClient
+from retrieval.core.settings import RetrievalSettings
 from retrieval.providers.clients.crossref import CrossrefClient
 from retrieval.providers.clients.openalex import OpenAlexClient
 from retrieval.providers.clients.semanticscholar import SemanticScholarClient
-from retrieval.core.settings import RetrievalSettings
 
 
 def test_crossref_client_uses_shared_session(monkeypatch):
