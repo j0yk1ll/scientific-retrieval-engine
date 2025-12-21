@@ -4,13 +4,12 @@ from .identifiers import normalize_doi, normalize_title
 from .matching import jaccard, title_tokens
 from .models import Paper
 from .session import SessionIndex
-from .settings import RetrievalSettings, load_dotenv_from_root
+from .settings import RetrievalSettings
 
 __all__ = [
     "Paper",
     "SessionIndex",
     "RetrievalSettings",
-    "load_dotenv_from_root",
     "normalize_doi",
     "normalize_title",
     "jaccard",
