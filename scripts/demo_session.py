@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Demo script to exercise the `retrieval` package functions.
+"""Demo script to exercise the `literature-retrieval-engine` package functions.
 
 This script calls the high-level functions exported by the package and prints
 concise summaries of their outputs. It's intended for interactive testing.

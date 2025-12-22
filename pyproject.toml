@@ -11,36 +11,36 @@ requires-python = ">=3.11,<3.12"
 readme = "README.md"
 
 dependencies = [
-    "requests>=2.32.5,<3.0",
-    "pydantic>=2.12.5,<3.0",
-    "pydantic-settings>=2.12.0,<3.0",
-    "tenacity>=9.1.2,<10.0",
-    "lxml>=6.0.2,<7.0",
-    "python-dotenv>=1.2.1,<2.0",
-    "faiss-cpu>=1.9.0,<2.0",
-    "numpy>=1.24.0,<3.0",
-    "sentence-transformers==5.2.0",
-    "torch>=2.9.1",
-    "tiktoken==0.12.0",
-    "setuptools>=80.9.0",
+    "requests",
+    "pydantic",
+    "pydantic-settings",
+    "tenacity",
+    "lxml",
+    "python-dotenv",
+    "faiss-cpu",
+    "numpy",
+    "sentence-transformers",
+    "torch",
+    "tiktoken",
+    "setuptools",
 ]
 
 [dependency-groups]
 dev = [
-    "responses>=0.25.8",
-    "ruff>=0.14.9",
-    "mypy>=1.19.1",
-    "types-requests>=2.31.0",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.15.1",
-    "pytest-timeout>=2.0.0",
-    "httpx>=0.28.1",
+    "responses",
+    "ruff",
+    "mypy",
+    "types-requests",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-timeout",
+    "httpx",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["retrieval"]
+packages = ["literature_retrieval_engine"]
 
 [tool.pytest.ini_options]
 markers = [
