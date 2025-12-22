@@ -1,13 +1,15 @@
-.PHONY: help up down test test-e2e lint typecheck install install-dev clean
+.PHONY: help up down test test-unit test-integration lint lint-fix typecheck install install-dev clean
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  up                - Start Docker services (Postgres + GROBID)"
+	@echo "  up                - Start Docker services"
 	@echo "  down              - Stop Docker services"
 	@echo "  test              - Run all tests"
-	@echo "  test-e2e          - Run E2E tests (requires Docker services)"
+	@echo "  test-unit         - Run unit tests"
+	@echo "  test-integration  - Run integration tests"
 	@echo "  lint              - Run ruff linter"
+	@echo "  lint-fix          - Run ruff linter with auto-fix"
 	@echo "  typecheck         - Run mypy type checker"
 	@echo "  install           - Install runtime dependencies"
 	@echo "  install-dev       - Install dev dependencies"
@@ -37,23 +39,15 @@ test-unit:
 test-integration:
 	uv run pytest tests/integration/ -m integration
 
-test-e2e:
-	RETRIEVAL_DB_DSN="postgresql://retrieval:retrieval@localhost:5432/retrieval" \
-	RETRIEVAL_DATA_DIR="./data" \
-	RETRIEVAL_INDEX_DIR="./index" \
-	RETRIEVAL_GROBID_URL="http://localhost:8070" \
-	RETRIEVAL_UNPAYWALL_EMAIL="test@example.com" \
-	uv run pytest tests/integration/test_e2e_real_services_and_chromadb.py -v -s
-
 # Code quality
 lint:
-	uv run ruff check retrieval/ tests/
+	uv run ruff check literature_retrieval_engine/ tests/
 
 lint-fix:
-	uv run ruff check --fix retrieval/ tests/
+	uv run ruff check --fix literature_retrieval_engine/ tests/
 
 typecheck:
-	uv run python -m mypy retrieval/
+	uv run python -m mypy literature_retrieval_engine/
 
 # Installation
 install:
