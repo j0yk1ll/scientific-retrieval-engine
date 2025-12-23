@@ -7,7 +7,7 @@ name = "literature-retrieval-engine"
 version = "0.1.0"
 description = "A Literature Retrieval Engine for Autonomous Deep Research"
 authors = [{ name = "j0yk1ll" }]
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.12"
 readme = "README.md"
 
 dependencies = [
